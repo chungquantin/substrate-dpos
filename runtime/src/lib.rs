@@ -74,16 +74,7 @@ mod runtime {
 	pub type Assets = pallet_assets;
 
 	#[runtime::pallet_index(5)]
-	pub type Multisig = pallet_multisig;
-
-	#[runtime::pallet_index(6)]
-	pub type FreeTx = pallet_free_tx;
-
-	#[runtime::pallet_index(7)]
 	pub type Dpos = pallet_dpos;
-
-	#[runtime::pallet_index(8)]
-	pub type Treasury = pallet_treasury;
 
 	#[runtime::pallet_index(99)]
 	pub type Timestamp = pallet_timestamp;
@@ -173,20 +164,6 @@ impl pallet_assets::Config for Runtime {
 	type BenchmarkHelper = ();
 }
 
-/// Configure the pallet-multisig in pallets/multisig.
-impl pallet_multisig::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type NativeBalance = Balances;
-	type RuntimeCall = RuntimeCall;
-}
-
-/// Configure the pallet-free-tx in pallets/free-tx.
-impl pallet_free_tx::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type NativeBalance = Balances;
-	type RuntimeCall = RuntimeCall;
-}
-
 parameter_types! {
 	pub const MaxValidators: u32 = 10;
 }
@@ -230,14 +207,6 @@ impl pallet_dpos::Config for Runtime {
 	type ReportNewValidatorSet = StoreNewValidatorSet;
 }
 
-/// Configure the pallet-treasury in pallets/treasury.
-impl pallet_treasury::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type NativeBalance = Balances;
-	type Fungibles = Assets;
-	type CustomOrigin = EnsureRoot<AccountId>;
-}
-
 /// The signed extensions that are added to the runtime.
 type SignedExtra = (
 	frame_system::CheckNonZeroSender<Runtime>,
@@ -270,9 +239,6 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_sudo, Sudo]
 		[pallet_dpos, Dpos]
-		[pallet_multisig, Multisig]
-		[pallet_free_tx, FreeTx]
-		[pallet_treasury, Treasury]
 		[pallet_timestamp, Timestamp]
 	);
 }
