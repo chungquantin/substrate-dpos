@@ -2220,6 +2220,7 @@ name = "pba-runtime"
 version = "0.1.0"
 dependencies = [
  "pallet-assets",
+ "pallet-authorship",
  "pallet-balances",
  "pallet-dpos",
  "pallet-sudo",

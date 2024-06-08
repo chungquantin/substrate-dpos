@@ -166,6 +166,7 @@ impl pallet_assets::Config for Runtime {
 
 parameter_types! {
 	pub const MaxValidators: u32 = 10;
+	pub const MinCandidateStake: u32 = 10;
 }
 
 pub struct BlockAuthor;
@@ -203,8 +204,14 @@ impl pallet_dpos::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type NativeBalance = Balances;
 	type MaxValidators = MaxValidators;
-	type FindAuthor = BlockAuthor;
 	type ReportNewValidatorSet = StoreNewValidatorSet;
+	type MinCandidateStake = MinCandidateStake;
+	type WeightInfo = ();
+}
+
+impl pallet_authorship::Config for Runtime {
+	type FindAuthor = BlockAuthor;
+	type EventHandler = ();
 }
 
 /// The signed extensions that are added to the runtime.

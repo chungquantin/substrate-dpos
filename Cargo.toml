@@ -23,3 +23,6 @@ pallet-balances = { version = "35.0.0", default-features = false }
 pallet-sudo = { version = "34.0.0", default-features = false }
 pallet-transaction-payment = { version = "34.0.0", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = "34.0.0", default-features = false }
+pallet-authorship = { version = "34.0.0", default-features = false }
+pallet-session = { version = "34.0.0", default-features = false }
+pallet-timestamp = { version = "33.0.0", default-features = false }

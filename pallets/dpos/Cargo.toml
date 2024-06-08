@@ -23,9 +23,9 @@ frame-benchmarking = { version = "34.0.0", default-features = false, optional = 
 frame-support = { version = "34.0.0", default-features = false }
 frame-system = { version = "34.0.0", default-features = false }
 
-pallet-authorship = { version = "34.0.0", default-features = false }
-pallet-session = { version = "34.0.0", default-features = false }
-pallet-timestamp = { version = "33.0.0", default-features = false }
+pallet-authorship = { workspace = true }
+pallet-session = { workspace = true }
+pallet-timestamp = { workspace = true }
 sp-core = { version = "33.0.1", default-features = false }
 sp-io = { version = "36.0.0", default-features = false }
 sp-runtime = { version = "37.0.0", default-features = false }
