@@ -2,6 +2,7 @@
 
 pub use pallet::*;
 
+pub mod types;
 pub mod weights;
 
 #[cfg(test)]
@@ -15,7 +16,10 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use crate::types::*;
 	use crate::weights::WeightInfo;
+	use frame_support::traits::fungible::MutateHold;
+	use frame_support::traits::tokens::Precision;
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{fungible, FindAuthor},
@@ -44,16 +48,18 @@ pub mod pallet {
 			+ fungible::Mutate<Self::AccountId>
 			+ fungible::hold::Inspect<Self::AccountId>
 			+ fungible::hold::Mutate<Self::AccountId>
+			// You need to tell your trait bounds that the `Reason` is `RuntimeHoldReason`.
+			+ fungible::hold::Mutate<Self::AccountId, Reason = Self::RuntimeHoldReason>
 			+ fungible::freeze::Inspect<Self::AccountId>
 			+ fungible::freeze::Mutate<Self::AccountId>;
 
 		/// The maximum number of authorities that the pallet can hold.
 		#[pallet::constant]
-		type MaxValidators: Get<u32>;
+		type MaxCandidates: Get<u32>;
 
 		/// The minimum number of stake that the candidate need to provide to secure slot
 		#[pallet::constant]
-		type MinCandidateBond: Get<u32>;
+		type MinCandidateBond: Get<BalanceOf<Self>>;
 
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
@@ -61,22 +67,55 @@ pub mod pallet {
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
+
+		/// Overarching hold reason. Our `HoldReason` below will become a part of this "Outer Enum"
+		/// thanks to the `#[runtime]` macro.
+		type RuntimeHoldReason: From<HoldReason>;
 	}
 
+	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
-	pub type CandidateDetailMap<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, BlockNumberFor<T>>;
+	pub type CandidateDetailMap<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		T::AccountId,
+		CandidateDetail<BalanceOf<T>, BlockNumberFor<T>>,
+		OptionQuery,
+	>;
+
+	/// Mapping the validator ID with the reigstered candidate detail
+	#[pallet::storage]
+	pub type CandidateRegistrations<T: Config> = StorageValue<
+		_,
+		BoundedVec<
+			CandidateRegitrationRequest<<T as frame_system::Config>::AccountId, BalanceOf<T>>,
+			<T as Config>::MaxCandidates,
+		>,
+		ValueQuery,
+	>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// We usually use passive tense for events.
-		SomethingStored { something: u32, who: T::AccountId },
+		CandidateRegistered { candidate_id: T::AccountId, initial_bond: BalanceOf<T> },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		TooManyValidators,
+		InsufficientBalance,
+		CandidateAlreadyExist,
+		CandidateDoesNotExist,
+		BelowMinimumCandidateBond,
+		InvalidNumberOfKeysMismatch,
+	}
+
+	/// A reason for the pallet dpos placing a hold on funds.
+	#[pallet::composite_enum]
+	pub enum HoldReason {
+		/// The Pallet has reserved it for registering the candidate to pool.
+		#[codec(index = 0)]
+		CandidateBondReserved,
 	}
 
 	#[pallet::call]
@@ -95,8 +134,22 @@ pub mod pallet {
 
 		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn register_as_candidate(_origin: OriginFor<T>, _bond: BalanceOf<T>) -> DispatchResult {
-			todo!("Register the validator as a candidate")
+		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
+			let validator = ensure_signed(origin)?;
+
+			// Update the registration list of candidates
+			let mut candidate_registrations = CandidateRegistrations::<T>::get();
+			candidate_registrations
+				.try_push(CandidateRegitrationRequest { bond, request_by: validator.clone() })
+				.map_err(|_| Error::<T>::TooManyValidators)?;
+
+			Self::hold_candidate_bond(&validator, bond)?;
+
+			Self::deposit_event(Event::CandidateRegistered {
+				candidate_id: validator,
+				initial_bond: bond,
+			});
+			Ok(())
 		}
 
 		#[pallet::call_index(4)]
@@ -134,7 +187,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(
-				(new_set.len() as u32) < T::MaxValidators::get(),
+				(new_set.len() as u32) < T::MaxCandidates::get(),
 				Error::<T>::TooManyValidators
 			);
 			T::ReportNewValidatorSet::report_new_validator_set(new_set);
@@ -143,6 +196,37 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		pub fn hold_candidate_bond(validator: &T::AccountId, bond: BalanceOf<T>) -> DispatchResult {
+			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
+			// Only hold the funds of a user which has no holds already.
+			ensure!(
+				!CandidateDetailMap::<T>::contains_key(&validator),
+				Error::<T>::CandidateAlreadyExist
+			);
+			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
+			// Store the amount held in our local storage.
+			let now = frame_system::Pallet::<T>::block_number();
+			CandidateDetailMap::<T>::insert(
+				&validator,
+				CandidateDetail { bond, registered_at: now },
+			);
+			Ok(())
+		}
+
+		/// This function will release the held balance of some user.
+		pub fn release_candidate_bonds(candidate: T::AccountId) -> DispatchResult {
+			let candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
+				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+			// NOTE: I am NOT using `T::HoldAmount::get()`... Why is that important?
+			T::NativeBalance::release(
+				&HoldReason::CandidateBondReserved.into(),
+				&candidate,
+				candidate_detail.bond,
+				Precision::BestEffort,
+			)?;
+			Ok(())
+		}
+
 		// A function to get you an account id for the current block author.
 		pub fn find_author() -> Option<T::AccountId> {
 			// If you want to see a realistic example of the `FindAuthor` interface, see

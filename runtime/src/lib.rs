@@ -165,7 +165,7 @@ impl pallet_assets::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxValidators: u32 = 10;
+	pub const MaxCandidates: u32 = 10;
 	pub const MinCandidateBond: u32 = 10;
 }
 
@@ -203,10 +203,11 @@ impl pallet_dpos::ReportNewValidatorSet<AccountId> for StoreNewValidatorSet {
 impl pallet_dpos::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type NativeBalance = Balances;
-	type MaxValidators = MaxValidators;
+	type MaxCandidates = MaxCandidates;
 	type ReportNewValidatorSet = StoreNewValidatorSet;
 	type MinCandidateBond = MinCandidateBond;
 	type WeightInfo = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 }
 
 impl pallet_authorship::Config for Runtime {

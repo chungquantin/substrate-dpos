@@ -64,13 +64,13 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = ConstU32<10>;
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
-	type RuntimeHoldReason = ();
+	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxFreezes = ConstU32<10>;
 }
 
 parameter_types! {
-	pub const MaxValidators: u32 = 10;
+	pub const MaxCandidates: u32 = 10;
 }
 
 pub struct AlwaysSeven;
@@ -96,10 +96,11 @@ impl pallet_authorship::Config for Test {
 impl pallet_dpos::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type NativeBalance = Balances;
-	type MaxValidators = MaxValidators;
+	type MaxCandidates = MaxCandidates;
 	type ReportNewValidatorSet = DoNothing;
 	type WeightInfo = ();
-	type MinCandidateBond = ConstU32<10>;
+	type MinCandidateBond = ConstU128<10>;
+	type RuntimeHoldReason = RuntimeHoldReason;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
