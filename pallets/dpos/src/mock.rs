@@ -1,4 +1,4 @@
-use crate::{self as pallet_dpos, ReportNewValidatorSet};
+use crate::{self as pallet_dpos, weights::*, ReportNewValidatorSet};
 use frame_support::{
 	derive_impl, parameter_types,
 	traits::{ConstU128, ConstU16, ConstU32, ConstU64, FindAuthor},
@@ -88,12 +88,18 @@ impl ReportNewValidatorSet<AccountId> for DoNothing {
 	fn report_new_validator_set(_: Vec<AccountId>) {}
 }
 
+impl pallet_authorship::Config for Test {
+	type FindAuthor = AlwaysSeven;
+	type EventHandler = ();
+}
+
 impl pallet_dpos::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type NativeBalance = Balances;
 	type MaxValidators = MaxValidators;
-	type FindAuthor = AlwaysSeven;
 	type ReportNewValidatorSet = DoNothing;
+	type WeightInfo = ();
+	type MinCandidateStake = ConstU32<10>;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

@@ -2,6 +2,8 @@
 
 pub use pallet::*;
 
+pub mod weights;
+
 #[cfg(test)]
 mod mock;
 
@@ -11,11 +13,9 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/polkadot_sdk/frame_runtime/index.html
-// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html
-// https://paritytech.github.io/polkadot-sdk/master/frame_support/attr.pallet.html#dev-mode-palletdev_mode
-#[frame_support::pallet(dev_mode)]
+#[frame_support::pallet]
 pub mod pallet {
+	use crate::weights::WeightInfo;
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{fungible, FindAuthor},
@@ -36,9 +36,7 @@ pub mod pallet {
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// Because this pallet emits events, it depends on the runtime's definition of an event.
-		/// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/frame_runtime_types/index.html
+	pub trait Config: frame_system::Config + pallet_authorship::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Type to access the Balances Pallet.
@@ -50,27 +48,25 @@ pub mod pallet {
 			+ fungible::freeze::Mutate<Self::AccountId>;
 
 		/// The maximum number of authorities that the pallet can hold.
+		#[pallet::constant]
 		type MaxValidators: Get<u32>;
 
-		/// Find the author of a block. A fake provide for this type is provided in the runtime. You
-		/// can use a similar mechanism in your tests.
-		type FindAuthor: FindAuthor<Self::AccountId>;
+		/// The minimum number of stake that the candidate need to provide
+		#[pallet::constant]
+		type MinCandidateStake: Get<u32>;
 
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
 		type ReportNewValidatorSet: ReportNewValidatorSet<Self::AccountId>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
-	/// The pallet's storage items.
-	/// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html#storage
-	/// https://paritytech.github.io/polkadot-sdk/master/frame_support/pallet_macros/attr.storage.html
 	#[pallet::storage]
-	pub type Something<T> = StorageValue<Value = u32>;
-	#[pallet::storage]
-	pub type SomethingMap<T: Config> = StorageMap<Key = T::AccountId, Value = BlockNumberFor<T>>;
+	pub type CandidateDetailMap<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, BlockNumberFor<T>>;
 
-	/// Pallets use events to inform users when important changes are made.
-	/// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html#event-and-error
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -78,20 +74,60 @@ pub mod pallet {
 		SomethingStored { something: u32, who: T::AccountId },
 	}
 
-	/// Errors inform users that something went wrong.
-	/// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html#event-and-error
 	#[pallet::error]
 	pub enum Error<T> {
 		TooManyValidators,
 	}
 
-	/// Dispatchable functions allows users to interact with the pallet and invoke state changes.
-	/// These functions materialize as "extrinsics", which are often compared to transactions.
-	/// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
-	/// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html#dispatchables
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(1)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn delegate_candidate(_origin: OriginFor<T>) -> DispatchResult {
+			todo!("Delegate tokens to the candidate - User tokens will be locked");
+		}
+
+		#[pallet::call_index(2)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn delay_undelegate(_origin: OriginFor<T>) -> DispatchResult {
+			todo!("Unstaking from the delegates or unstaking bond (scheduled)")
+		}
+
+		#[pallet::call_index(3)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn register_as_candidate(_origin: OriginFor<T>, _bond: BalanceOf<T>) -> DispatchResult {
+			todo!("Register the validator as a candidate")
+		}
+
+		#[pallet::call_index(4)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn delay_deregister_candidate(_origin: OriginFor<T>) -> DispatchResult {
+			todo!("Deregister the validator from the candidate set (scheduled)")
+		}
+
+		#[pallet::call_index(5)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn delay_candidate_exit(_origin: OriginFor<T>) -> DispatchResult {
+			todo!("Candidate leave the candidate pools, delegators token will be unlocked");
+		}
+
+		#[pallet::call_index(6)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn cancel_candidate_exit(_origin: OriginFor<T>) -> DispatchResult {
+			todo!("Cancel the request to exit the candidate pool");
+		}
+
+		#[pallet::call_index(7)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn execute_reward_payout(_origin: OriginFor<T>) -> DispatchResult {
+			todo!(
+				"Distribute the reward back to the delegators and validator who produced the block"
+			);
+		}
+
 		/// An example of directly updating the authorities into [`Config::ReportNewValidatorSet`].
+		#[pallet::call_index(99)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_report_new_validators())]
 		pub fn force_report_new_validators(
 			origin: OriginFor<T>,
 			new_set: Vec<T::AccountId>,
@@ -104,27 +140,6 @@ pub mod pallet {
 			T::ReportNewValidatorSet::report_new_validator_set(new_set);
 			Ok(())
 		}
-
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/reference_docs/frame_origin/index.html
-			let who = ensure_signed(origin)?;
-
-			// Do some checks.
-			ensure!(something > 42, "ErrorsCanBeStaticStringsToo");
-
-			// Update storage.
-			<Something<T>>::put(something);
-
-			// Emit an event.
-			Self::deposit_event(Event::SomethingStored { something, who });
-
-			// Return a successful `DispatchResult`
-			Ok(())
-		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -132,7 +147,9 @@ pub mod pallet {
 		pub fn find_author() -> Option<T::AccountId> {
 			// If you want to see a realistic example of the `FindAuthor` interface, see
 			// `pallet-authorship`.
-			T::FindAuthor::find_author::<'_, Vec<_>>(Default::default())
+			<T as pallet_authorship::Config>::FindAuthor::find_author::<'_, Vec<_>>(
+				Default::default(),
+			)
 		}
 	}
 }
