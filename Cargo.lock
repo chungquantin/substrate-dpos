@@ -1988,6 +1988,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-authorship"
+version = "34.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccd3d28c92dff65f0d198e88e3689f5282903138102bff84cc3794a1426665fc"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-balances"
 version = "35.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2011,13 +2026,39 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-authorship",
  "pallet-balances",
+ "pallet-session",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-session"
+version = "34.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9170fef289c193773d94e2b6c799f09c97b199464902a8d220bfcd399a65d726"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "log",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
