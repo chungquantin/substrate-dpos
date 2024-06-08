@@ -1,4 +1,4 @@
-use crate::{self as pallet_dpos, weights::*, ReportNewValidatorSet};
+use crate::{self as pallet_dpos, ReportNewValidatorSet};
 use frame_support::{
 	derive_impl, parameter_types,
 	traits::{ConstU16, ConstU32, ConstU64, FindAuthor, Hooks},
@@ -109,6 +109,24 @@ impl pallet_dpos::Config for Test {
 	type EpochDuration = EpochDuration;
 }
 
+pub struct TestAccount {
+	pub id: AccountId,
+	pub balance: u128,
+}
+
+impl TestAccount {
+	pub fn to_tuple(self) -> (AccountId, u128) {
+		(self.id, self.balance)
+	}
+}
+
+pub const ACCOUNT_1: TestAccount = TestAccount { id: 1, balance: 10 };
+pub const ACCOUNT_2: TestAccount = TestAccount { id: 2, balance: 20 };
+pub const ACCOUNT_3: TestAccount = TestAccount { id: 3, balance: 300 };
+pub const ACCOUNT_4: TestAccount = TestAccount { id: 4, balance: 400 };
+pub const ACCOUNT_5: TestAccount = TestAccount { id: 5, balance: 500 };
+pub const ACCOUNT_6: TestAccount = TestAccount { id: 6, balance: 10_000 };
+
 pub struct TestExtBuilder;
 
 impl Default for TestExtBuilder {
@@ -124,10 +142,12 @@ impl TestExtBuilder {
 
 		let _ = pallet_balances::GenesisConfig::<Test> {
 			balances: vec![
-				(1, 10),
-				(2, 20),
-				(3, 300),
-				(4, 400),
+				ACCOUNT_1.to_tuple(),
+				ACCOUNT_2.to_tuple(),
+				ACCOUNT_3.to_tuple(),
+				ACCOUNT_4.to_tuple(),
+				ACCOUNT_5.to_tuple(),
+				ACCOUNT_6.to_tuple(),
 				// This allows us to have a total_payout different from 0.
 				(999, 1_000_000_000_000),
 			],
