@@ -25,7 +25,6 @@ pub mod pallet {
 		Twox64Concat,
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
-	use sp_runtime::traits::BlockNumber;
 	use sp_std::prelude::*;
 
 	pub trait ReportNewValidatorSet<AccountId> {
