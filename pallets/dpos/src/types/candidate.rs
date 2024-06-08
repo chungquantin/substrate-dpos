@@ -1,12 +1,24 @@
 use codec::{Decode, Encode, MaxEncodedLen};
+use frame_support::{dispatch::DispatchResult, sp_runtime::traits::CheckedAdd};
+use frame_system::pallet_prelude::BlockNumberFor;
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
 
+use crate::{BalanceOf, Config};
+
 #[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen, PartialEq, Eq)]
-pub struct CandidateDetail<Balance, BlockNumber> {
-	pub bond: Balance,
-	pub total_delegations: Balance,
-	pub registered_at: BlockNumber,
+#[scale_info(skip_type_params(T))]
+pub struct CandidateDetail<T: Config> {
+	pub bond: BalanceOf<T>,
+	pub total_delegations: BalanceOf<T>,
+	pub registered_at: BlockNumberFor<T>,
+}
+
+impl<T: Config> CandidateDetail<T> {
+	pub fn add_delegated_amount(&mut self, amount: BalanceOf<T>) -> DispatchResult {
+		self.total_delegations = self.total_delegations.checked_add(&amount).expect("Overflow");
+		Ok(())
+	}
 }
 
 #[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen, PartialEq, Eq)]

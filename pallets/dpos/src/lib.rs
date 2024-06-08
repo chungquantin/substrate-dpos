@@ -16,18 +16,16 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::types::*;
-	use crate::weights::WeightInfo;
-	use frame_support::dispatch::DispatchResult;
-	use frame_support::sp_runtime::traits::CheckedAdd;
-	use frame_support::traits::fungible::MutateHold;
-	use frame_support::Twox64Concat;
+	use crate::{types::*, weights::WeightInfo};
 	use frame_support::{
+		dispatch::DispatchResult,
 		pallet_prelude::*,
-		sp_runtime::traits::Zero,
-		traits::{fungible, tokens::Precision, FindAuthor},
+		sp_runtime::traits::{CheckedAdd, Zero},
+		traits::{fungible, fungible::MutateHold, tokens::Precision, FindAuthor},
+		Twox64Concat,
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
+	use sp_runtime::traits::BlockNumber;
 	use sp_std::prelude::*;
 
 	pub trait ReportNewValidatorSet<AccountId> {
@@ -87,7 +85,8 @@ pub mod pallet {
 	#[pallet::getter(fn min_delegate_amount)]
 	pub type MinDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
-	/// The maximum number of total delegate amount that the delegator can delegate for one candidate
+	/// The maximum number of total delegate amount that the delegator can delegate for one
+	/// candidate
 	#[pallet::storage]
 	#[pallet::getter(fn max_total_delegate_amount)]
 	pub type MaxTotalDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
@@ -103,13 +102,8 @@ pub mod pallet {
 	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
 	#[pallet::getter(fn candidates)]
-	pub type CandidateDetailMap<T: Config> = CountedStorageMap<
-		_,
-		Twox64Concat,
-		T::AccountId,
-		CandidateDetail<BalanceOf<T>, BlockNumberFor<T>>,
-		OptionQuery,
-	>;
+	pub type CandidateDetailMap<T: Config> =
+		CountedStorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
 
 	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
@@ -129,7 +123,7 @@ pub mod pallet {
 	pub type DelegateCountMap<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, u32, ValueQuery>;
 
-	/// Mapping the validator ID with the reigstered candidate detail
+	/// DelegationInfos[(delegator_id, validator_id, delegated_amount)]
 	#[pallet::storage]
 	#[pallet::getter(fn delegate_infos)]
 	pub type DelegationInfos<T: Config> = StorageDoubleMap<
@@ -237,35 +231,36 @@ pub mod pallet {
 			candidate: T::AccountId,
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
-			ensure!(
-				CandidateDetailMap::<T>::contains_key(&candidate),
-				Error::<T>::CandidateDoesNotExist
-			);
-
 			let delegator = ensure_signed(origin)?;
+			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
+				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
 			match DelegationInfos::<T>::try_get(&delegator, &candidate) {
 				Ok(mut delegation_info) => {
 					// Update the delegated amount of the existing delegation info
 					let new_delegated_amount =
 						delegation_info.amount.checked_add(&amount).expect("Overflow");
 					Self::check_delegate_payload(&delegator, new_delegated_amount)?;
+
 					delegation_info.amount = new_delegated_amount;
+					delegation_info.last_modified_at = Self::current_block_number();
+					DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 				},
 				Err(_) => {
 					// First time delegate to this candidate
 					Self::check_delegate_payload(&delegator, amount)?;
-					let now = frame_system::Pallet::<T>::block_number();
 					let delegate_count = DelegateCountMap::<T>::get(&delegator);
 					DelegateCountMap::<T>::set(&delegator, delegate_count + 1);
 					DelegationInfos::<T>::insert(
 						&delegator,
 						&candidate,
-						DelegationInfo { amount, last_modified_at: now },
+						DelegationInfo { amount, last_modified_at: Self::current_block_number() },
 					);
 				},
 			};
 
 			T::NativeBalance::hold(&HoldReason::DelegateAmountReserved.into(), &delegator, amount)?;
+			candidate_detail.add_delegated_amount(amount)?;
+			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
 
 			Self::deposit_event(Event::CandidateDelegated {
 				candidate_id: candidate,
@@ -331,6 +326,10 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn current_block_number() -> BlockNumberFor<T> {
+			frame_system::Pallet::<T>::block_number()
+		}
+
 		fn check_delegate_payload(
 			delegator: &T::AccountId,
 			amount: BalanceOf<T>,
@@ -358,10 +357,13 @@ pub mod pallet {
 			);
 			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
 			// Store the amount held in our local storage.
-			let now = frame_system::Pallet::<T>::block_number();
 			CandidateDetailMap::<T>::insert(
 				&validator,
-				CandidateDetail { bond, registered_at: now, total_delegations: Zero::zero() },
+				CandidateDetail {
+					bond,
+					registered_at: Self::current_block_number(),
+					total_delegations: Zero::zero(),
+				},
 			);
 			Ok(())
 		}

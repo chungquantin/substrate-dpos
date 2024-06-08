@@ -73,7 +73,7 @@ mod register_as_candidate {
 
 #[cfg(test)]
 mod delegate_candidate {
-	use types::DelegationInfo;
+	use types::{CandidateDetail, DelegationInfo};
 
 	use super::*;
 
@@ -132,6 +132,7 @@ mod delegate_candidate {
 
 	#[test]
 	fn should_ok_delegate_candidate_successfully() {
+		use frame_support::traits::fungible::InspectHold;
 		let mut ext = TestExtBuilder::default();
 		let candidate = ACCOUNT_3;
 		ext.min_candidate_bond(20)
@@ -140,18 +141,112 @@ mod delegate_candidate {
 			.build()
 			.execute_with(|| {
 				assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+				assert_eq!(
+					CandidateDetailMap::<Test>::get(candidate.id),
+					Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				);
+
+				TestExtBuilder::run_to_block(5);
+
 				assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
-					Some(DelegationInfo { amount: 200, last_modified_at: 1 })
+					Some(DelegationInfo { amount: 200, last_modified_at: 5 })
 				);
+				assert_eq!(Balances::free_balance(ACCOUNT_4.id), ACCOUNT_4.balance - 200);
+				assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200);
 
 				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
 					candidate_id: candidate.id,
 					delegated_by: ACCOUNT_4.id,
 					amount: 200,
 				}));
+
+				assert_eq!(
+					CandidateDetailMap::<Test>::get(candidate.id),
+					Some(CandidateDetail { bond: 40, total_delegations: 200, registered_at: 1 })
+				);
+			});
+	}
+
+	#[test]
+	fn should_ok_multiple_delegate_one_candidate_successfully() {
+		use frame_support::traits::fungible::InspectHold;
+		let mut ext = TestExtBuilder::default();
+		let candidate = ACCOUNT_3;
+		ext.min_candidate_bond(20)
+			.min_delegate_amount(101)
+			.max_delegate_count(3)
+			.max_total_delegate_amount(500)
+			.build()
+			.execute_with(|| {
+				assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+				assert_eq!(
+					CandidateDetailMap::<Test>::get(candidate.id),
+					Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				);
+
+				TestExtBuilder::run_to_block(5);
+
+				let (delegated_amount_1, delegated_amount_2) = (200, 100);
+				// Delegate the first time
+				assert_ok!(Dpos::delegate_candidate(
+					ros(ACCOUNT_4.id),
+					candidate.id,
+					delegated_amount_1
+				));
+				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
+				assert_eq!(
+					DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
+					Some(DelegationInfo { amount: 200, last_modified_at: 5 })
+				);
+				assert_eq!(
+					Balances::free_balance(ACCOUNT_4.id),
+					ACCOUNT_4.balance - delegated_amount_1
+				);
+				assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200);
+
+				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+					candidate_id: candidate.id,
+					delegated_by: ACCOUNT_4.id,
+					amount: 200,
+				}));
+
+				TestExtBuilder::run_to_block(10);
+
+				// Delegate the second time
+				let sum_delegated_amount = delegated_amount_1 + delegated_amount_2;
+				assert_ok!(Dpos::delegate_candidate(
+					ros(ACCOUNT_4.id),
+					candidate.id,
+					delegated_amount_2
+				));
+				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
+				assert_eq!(
+					DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
+					Some(DelegationInfo { amount: sum_delegated_amount, last_modified_at: 10 })
+				);
+				assert_eq!(
+					Balances::free_balance(ACCOUNT_4.id),
+					ACCOUNT_4.balance - sum_delegated_amount
+				);
+				assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), sum_delegated_amount);
+
+				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+					candidate_id: candidate.id,
+					delegated_by: ACCOUNT_4.id,
+					amount: delegated_amount_2,
+				}));
+
+				assert_eq!(
+					CandidateDetailMap::<Test>::get(candidate.id),
+					Some(CandidateDetail {
+						bond: 40,
+						total_delegations: sum_delegated_amount,
+						registered_at: 1
+					})
+				);
 			});
 	}
 }
