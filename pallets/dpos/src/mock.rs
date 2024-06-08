@@ -1,7 +1,7 @@
 use crate::{self as pallet_dpos, weights::*, ReportNewValidatorSet};
 use frame_support::{
 	derive_impl, parameter_types,
-	traits::{ConstU128, ConstU16, ConstU32, ConstU64, FindAuthor},
+	traits::{ConstU16, ConstU32, ConstU64, FindAuthor, Hooks},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -20,6 +20,13 @@ frame_support::construct_runtime! {
 		Balances: pallet_balances,
 		Dpos: pallet_dpos,
 	}
+}
+
+parameter_types! {
+	pub const MaxCandidates: u32 = 10;
+	pub const MinCandidateBond: u128 = 10;
+	pub const EpochDuration: u32 = 100;
+	pub const ExistentialDeposit : u128 = 1;
 }
 
 // Feel free to remove more items from this, as they are the same as
@@ -58,7 +65,7 @@ impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
 	type RuntimeEvent = RuntimeEvent;
-	type ExistentialDeposit = ConstU128<1>;
+	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
 	type MaxLocks = ConstU32<10>;
@@ -67,10 +74,6 @@ impl pallet_balances::Config for Test {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type FreezeIdentifier = ();
 	type MaxFreezes = ConstU32<10>;
-}
-
-parameter_types! {
-	pub const MaxCandidates: u32 = 10;
 }
 
 pub struct AlwaysSeven;
@@ -99,12 +102,45 @@ impl pallet_dpos::Config for Test {
 	type MaxCandidates = MaxCandidates;
 	type ReportNewValidatorSet = DoNothing;
 	type WeightInfo = ();
-	type MinCandidateBond = ConstU128<10>;
+	type MinCandidateBond = MinCandidateBond;
 	type RuntimeHoldReason = RuntimeHoldReason;
+	// Assuming blocks happen every 6 seconds, this will be 600 seconds, approximately 10 minutes.
+	// But this is all just test config, but gives you an idea how this is all CONFIGURABLE
+	type EpochDuration = EpochDuration;
 }
 
-pub fn new_test_ext() -> sp_io::TestExternalities {
-	// learn how to improve your test setup:
-	// https://paritytech.github.io/polkadot-sdk/master/polkadot_sdk_docs/guides/your_first_pallet/index.html
-	frame_system::GenesisConfig::<Test>::default().build_storage().unwrap().into()
+pub struct TestExtBuilder;
+
+impl Default for TestExtBuilder {
+	fn default() -> Self {
+		Self {}
+	}
+}
+
+impl TestExtBuilder {
+	pub fn build(&self) -> sp_io::TestExternalities {
+		let mut storage =
+			frame_system::GenesisConfig::<Test>::default().build_storage().unwrap().into();
+
+		let _ = pallet_balances::GenesisConfig::<Test> {
+			balances: vec![
+				(1, 10),
+				(2, 20),
+				(3, 300),
+				(4, 400),
+				// This allows us to have a total_payout different from 0.
+				(999, 1_000_000_000_000),
+			],
+		}
+		.assimilate_storage(&mut storage);
+
+		let mut ext = sp_io::TestExternalities::from(storage);
+
+		ext.execute_with(|| {
+			System::set_block_number(1);
+			<Dpos as Hooks<u64>>::on_initialize(1);
+		});
+
+		ext
+	}
 }

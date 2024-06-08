@@ -19,10 +19,10 @@ pub mod pallet {
 	use crate::types::*;
 	use crate::weights::WeightInfo;
 	use frame_support::traits::fungible::MutateHold;
-	use frame_support::traits::tokens::Precision;
 	use frame_support::{
 		pallet_prelude::*,
-		traits::{fungible, FindAuthor},
+		sp_runtime::traits::Zero,
+		traits::{fungible, tokens::Precision, FindAuthor},
 	};
 	use frame_system::pallet_prelude::*;
 	use sp_std::prelude::*;
@@ -71,6 +71,13 @@ pub mod pallet {
 		/// Overarching hold reason. Our `HoldReason` below will become a part of this "Outer Enum"
 		/// thanks to the `#[runtime]` macro.
 		type RuntimeHoldReason: From<HoldReason>;
+
+		/// We use a configurable constant `BlockNumber` to tell us when we should trigger the
+		/// validator set change. The runtime developer should implement this to represent the time
+		/// they want validators to change, but for your pallet, you just care about the block
+		/// number.
+		#[pallet::constant]
+		type EpochDuration: Get<BlockNumberFor<Self>>;
 	}
 
 	/// Mapping the validator ID with the reigstered candidate detail
@@ -100,10 +107,25 @@ pub mod pallet {
 		CandidateRegistered { candidate_id: T::AccountId, initial_bond: BalanceOf<T> },
 	}
 
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
+			// This is a pretty lightweight check that we do EVERY block, but then tells us when an
+			// Epoch has passed...
+			if n % T::EpochDuration::get() == BlockNumberFor::<T>::zero() {
+				// CHANGE VALIDATORS LOGIC
+				// You cannot return an error here, so you have to be clever with your code...
+			}
+
+			// We return a default weight because we do not expect you to do weights for your
+			// project... Except for extra credit...
+			return Weight::default();
+		}
+	}
+
 	#[pallet::error]
 	pub enum Error<T> {
 		TooManyValidators,
-		InsufficientBalance,
 		CandidateAlreadyExist,
 		CandidateDoesNotExist,
 		BelowMinimumCandidateBond,
