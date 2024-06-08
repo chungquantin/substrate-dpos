@@ -17,8 +17,6 @@ mod register_as_candidate {
 	fn should_failed_invalid_bond_amount() {
 		let ext = TestExtBuilder::default();
 		ext.build().execute_with(|| {
-			// Go past genesis block so events get deposited
-			System::set_block_number(1);
 			// Attemp to register as candidate without enough fund in the account
 			assert_err!(
 				Dpos::register_as_candidate(ros(ACCOUNT_1.id), 500),
@@ -43,7 +41,11 @@ mod register_as_candidate {
 			let current_block_number = System::block_number();
 			assert_eq!(
 				CandidateDetailMap::<Test>::get(succes_acc),
-				Some(CandidateDetail { bond: hold_amount, registered_at: current_block_number })
+				Some(CandidateDetail {
+					bond: hold_amount,
+					registered_at: current_block_number,
+					total_delegations: 0
+				})
 			);
 
 			assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
@@ -66,5 +68,90 @@ mod register_as_candidate {
 				Error::<Test>::CandidateAlreadyExist
 			)
 		});
+	}
+}
+
+#[cfg(test)]
+mod delegate_candidate {
+	use types::DelegationInfo;
+
+	use super::*;
+
+	#[test]
+	fn should_failed_no_candidate_found() {
+		let ext = TestExtBuilder::default();
+		ext.build().execute_with(|| {
+			assert_err!(
+				Dpos::delegate_candidate(ros(ACCOUNT_3.id), ACCOUNT_1.id, 100),
+				Error::<Test>::CandidateDoesNotExist
+			);
+		});
+	}
+
+	#[test]
+	fn should_failed_over_range_delegate_amount() {
+		let mut ext = TestExtBuilder::default();
+		let candidate = ACCOUNT_3;
+		ext.min_candidate_bond(20)
+			.min_delegate_amount(101)
+			.max_total_delegate_amount(300)
+			.build()
+			.execute_with(|| {
+				assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+
+				assert_err!(
+					Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 100),
+					Error::<Test>::BelowMinimumDelegateAmount
+				);
+
+				assert_err!(
+					Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 350),
+					Error::<Test>::OverMaximumTotalDelegateAmount
+				);
+			});
+	}
+
+	#[test]
+	fn should_fail_delegate_too_many_candidates() {
+		let mut ext = TestExtBuilder::default();
+		ext.min_candidate_bond(5)
+			.min_delegate_amount(101)
+			.max_total_delegate_amount(300)
+			.max_delegate_count(1)
+			.build()
+			.execute_with(|| {
+				assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_2.id), 5));
+				assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_3.id), 40));
+				assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), ACCOUNT_2.id, 200));
+				assert_err!(
+					Dpos::delegate_candidate(ros(ACCOUNT_4.id), ACCOUNT_3.id, 100),
+					Error::<Test>::TooManyCandidateDelegations
+				);
+			});
+	}
+
+	#[test]
+	fn should_ok_delegate_candidate_successfully() {
+		let mut ext = TestExtBuilder::default();
+		let candidate = ACCOUNT_3;
+		ext.min_candidate_bond(20)
+			.min_delegate_amount(101)
+			.max_total_delegate_amount(300)
+			.build()
+			.execute_with(|| {
+				assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+				assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
+				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
+				assert_eq!(
+					DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
+					Some(DelegationInfo { amount: 200, last_modified_at: 1 })
+				);
+
+				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+					candidate_id: candidate.id,
+					delegated_by: ACCOUNT_4.id,
+					amount: 200,
+				}));
+			});
 	}
 }

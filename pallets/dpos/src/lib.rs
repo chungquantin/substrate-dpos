@@ -18,13 +18,16 @@ mod benchmarking;
 pub mod pallet {
 	use crate::types::*;
 	use crate::weights::WeightInfo;
+	use frame_support::dispatch::DispatchResult;
+	use frame_support::sp_runtime::traits::CheckedAdd;
 	use frame_support::traits::fungible::MutateHold;
+	use frame_support::Twox64Concat;
 	use frame_support::{
 		pallet_prelude::*,
 		sp_runtime::traits::Zero,
 		traits::{fungible, tokens::Precision, FindAuthor},
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::pallet_prelude::{OriginFor, *};
 	use sp_std::prelude::*;
 
 	pub trait ReportNewValidatorSet<AccountId> {
@@ -54,12 +57,8 @@ pub mod pallet {
 			+ fungible::freeze::Mutate<Self::AccountId>;
 
 		/// The maximum number of authorities that the pallet can hold.
-		#[pallet::constant]
+		#[pallet::storage]
 		type MaxCandidates: Get<u32>;
-
-		/// The minimum number of stake that the candidate need to provide to secure slot
-		#[pallet::constant]
-		type MinCandidateBond: Get<BalanceOf<Self>>;
 
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
@@ -71,18 +70,40 @@ pub mod pallet {
 		/// Overarching hold reason. Our `HoldReason` below will become a part of this "Outer Enum"
 		/// thanks to the `#[runtime]` macro.
 		type RuntimeHoldReason: From<HoldReason>;
-
-		/// We use a configurable constant `BlockNumber` to tell us when we should trigger the
-		/// validator set change. The runtime developer should implement this to represent the time
-		/// they want validators to change, but for your pallet, you just care about the block
-		/// number.
-		#[pallet::constant]
-		type EpochDuration: Get<BlockNumberFor<Self>>;
 	}
+
+	/// The minimum number of stake that the candidate need to provide to secure slot
+	#[pallet::storage]
+	#[pallet::getter(fn min_candidate_bond)]
+	pub type MinCandidateBond<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+	/// The maximum number of candidates that delegators can delegate to
+	#[pallet::storage]
+	#[pallet::getter(fn max_delegate_count)]
+	pub type MaxDelegateCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	/// The minimum number of delegate amount that the delegator need to provide for one candidate
+	#[pallet::storage]
+	#[pallet::getter(fn min_delegate_amount)]
+	pub type MinDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+	/// The maximum number of total delegate amount that the delegator can delegate for one candidate
+	#[pallet::storage]
+	#[pallet::getter(fn max_total_delegate_amount)]
+	pub type MaxTotalDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+	/// We use a configurable constant `BlockNumber` to tell us when we should trigger the
+	/// validator set change. The runtime developer should implement this to represent the time
+	/// they want validators to change, but for your pallet, you just care about the block
+	/// number.
+	#[pallet::storage]
+	#[pallet::getter(fn epoch_duration)]
+	pub type EpochDuration<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
-	pub type CandidateDetailMap<T: Config> = StorageMap<
+	#[pallet::getter(fn candidates)]
+	pub type CandidateDetailMap<T: Config> = CountedStorageMap<
 		_,
 		Twox64Concat,
 		T::AccountId,
@@ -92,6 +113,7 @@ pub mod pallet {
 
 	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
+	#[pallet::getter(fn candidate_regristration)]
 	pub type CandidateRegistrations<T: Config> = StorageValue<
 		_,
 		BoundedVec<
@@ -101,10 +123,58 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// The maximum number of candidates that delegators can delegate to
+	#[pallet::storage]
+	#[pallet::getter(fn delegate_count_map)]
+	pub type DelegateCountMap<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, u32, ValueQuery>;
+
+	/// Mapping the validator ID with the reigstered candidate detail
+	#[pallet::storage]
+	#[pallet::getter(fn delegate_infos)]
+	pub type DelegationInfos<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		T::AccountId,
+		Twox64Concat,
+		T::AccountId,
+		DelegationInfo<T>,
+		OptionQuery,
+	>;
+
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		pub min_candidate_bond: BalanceOf<T>,
+		pub max_delegate_count: u32,
+		pub max_total_delegate_amount: BalanceOf<T>,
+		pub min_delegate_amount: BalanceOf<T>,
+		pub epoch_duration: BlockNumberFor<T>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			MinCandidateBond::<T>::put(self.min_candidate_bond);
+			MaxDelegateCount::<T>::put(self.max_delegate_count);
+			MaxTotalDelegateAmount::<T>::put(self.max_total_delegate_amount);
+			MinDelegateAmount::<T>::put(self.min_delegate_amount);
+			EpochDuration::<T>::put(self.epoch_duration);
+		}
+	}
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		CandidateRegistered { candidate_id: T::AccountId, initial_bond: BalanceOf<T> },
+		CandidateRegistered {
+			candidate_id: T::AccountId,
+			initial_bond: BalanceOf<T>,
+		},
+		CandidateDelegated {
+			candidate_id: T::AccountId,
+			delegated_by: T::AccountId,
+			amount: BalanceOf<T>,
+		},
 	}
 
 	#[pallet::hooks]
@@ -112,7 +182,7 @@ pub mod pallet {
 		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			// This is a pretty lightweight check that we do EVERY block, but then tells us when an
 			// Epoch has passed...
-			if n % T::EpochDuration::get() == BlockNumberFor::<T>::zero() {
+			if n % EpochDuration::<T>::get() == BlockNumberFor::<T>::zero() {
 				// CHANGE VALIDATORS LOGIC
 				// You cannot return an error here, so you have to be clever with your code...
 			}
@@ -126,10 +196,12 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		TooManyValidators,
+		TooManyCandidateDelegations,
 		CandidateAlreadyExist,
 		CandidateDoesNotExist,
+		OverMaximumTotalDelegateAmount,
+		BelowMinimumDelegateAmount,
 		BelowMinimumCandidateBond,
-		InvalidNumberOfKeysMismatch,
 	}
 
 	/// A reason for the pallet dpos placing a hold on funds.
@@ -138,14 +210,69 @@ pub mod pallet {
 		/// The Pallet has reserved it for registering the candidate to pool.
 		#[codec(index = 0)]
 		CandidateBondReserved,
+		#[codec(index = 1)]
+		DelegateAmountReserved,
+	}
+
+	impl<T: Config> DelayExecutor<T> for Pallet<T> {
+		fn execute_deregister_candidate(_origin: OriginFor<T>) -> DispatchResult {
+			unimplemented!();
+		}
+
+		fn execute_undelegate(_origin: OriginFor<T>) -> DispatchResult {
+			unimplemented!();
+		}
+
+		fn execute_reward_payout(_origin: OriginFor<T>) -> DispatchResult {
+			unimplemented!();
+		}
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn delegate_candidate(_origin: OriginFor<T>) -> DispatchResult {
-			todo!("Delegate tokens to the candidate - User tokens will be locked");
+		pub fn delegate_candidate(
+			origin: OriginFor<T>,
+			candidate: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			ensure!(
+				CandidateDetailMap::<T>::contains_key(&candidate),
+				Error::<T>::CandidateDoesNotExist
+			);
+
+			let delegator = ensure_signed(origin)?;
+			match DelegationInfos::<T>::try_get(&delegator, &candidate) {
+				Ok(mut delegation_info) => {
+					// Update the delegated amount of the existing delegation info
+					let new_delegated_amount =
+						delegation_info.amount.checked_add(&amount).expect("Overflow");
+					Self::check_delegate_payload(&delegator, new_delegated_amount)?;
+					delegation_info.amount = new_delegated_amount;
+				},
+				Err(_) => {
+					// First time delegate to this candidate
+					Self::check_delegate_payload(&delegator, amount)?;
+					let now = frame_system::Pallet::<T>::block_number();
+					let delegate_count = DelegateCountMap::<T>::get(&delegator);
+					DelegateCountMap::<T>::set(&delegator, delegate_count + 1);
+					DelegationInfos::<T>::insert(
+						&delegator,
+						&candidate,
+						DelegationInfo { amount, last_modified_at: now },
+					);
+				},
+			};
+
+			T::NativeBalance::hold(&HoldReason::DelegateAmountReserved.into(), &delegator, amount)?;
+
+			Self::deposit_event(Event::CandidateDelegated {
+				candidate_id: candidate,
+				delegated_by: delegator,
+				amount,
+			});
+			Ok(())
 		}
 
 		#[pallet::call_index(2)]
@@ -174,30 +301,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(4)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn delay_deregister_candidate(_origin: OriginFor<T>) -> DispatchResult {
-			todo!("Deregister the validator from the candidate set (scheduled)")
-		}
-
-		#[pallet::call_index(5)]
+		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn delay_candidate_exit(_origin: OriginFor<T>) -> DispatchResult {
 			todo!("Candidate leave the candidate pools, delegators token will be unlocked");
 		}
 
-		#[pallet::call_index(6)]
+		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn cancel_candidate_exit(_origin: OriginFor<T>) -> DispatchResult {
 			todo!("Cancel the request to exit the candidate pool");
-		}
-
-		#[pallet::call_index(7)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn execute_reward_payout(_origin: OriginFor<T>) -> DispatchResult {
-			todo!(
-				"Distribute the reward back to the delegators and validator who produced the block"
-			);
 		}
 
 		/// An example of directly updating the authorities into [`Config::ReportNewValidatorSet`].
@@ -218,8 +331,26 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn check_delegate_payload(
+			delegator: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let (max_delegate_amount, min_delegate_amount, max_delegate_count) = (
+				MaxTotalDelegateAmount::<T>::get(),
+				MinDelegateAmount::<T>::get(),
+				MaxDelegateCount::<T>::get(),
+			);
+			ensure!(
+				DelegateCountMap::<T>::get(&delegator) + 1 <= max_delegate_count,
+				Error::<T>::TooManyCandidateDelegations
+			);
+			ensure!(amount < max_delegate_amount, Error::<T>::OverMaximumTotalDelegateAmount);
+			ensure!(amount >= min_delegate_amount, Error::<T>::BelowMinimumDelegateAmount);
+			Ok(())
+		}
+
 		pub fn hold_candidate_bond(validator: &T::AccountId, bond: BalanceOf<T>) -> DispatchResult {
-			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
+			ensure!(bond >= MinCandidateBond::<T>::get(), Error::<T>::BelowMinimumCandidateBond);
 			// Only hold the funds of a user which has no holds already.
 			ensure!(
 				!CandidateDetailMap::<T>::contains_key(&validator),
@@ -230,12 +361,11 @@ pub mod pallet {
 			let now = frame_system::Pallet::<T>::block_number();
 			CandidateDetailMap::<T>::insert(
 				&validator,
-				CandidateDetail { bond, registered_at: now },
+				CandidateDetail { bond, registered_at: now, total_delegations: Zero::zero() },
 			);
 			Ok(())
 		}
 
-		/// This function will release the held balance of some user.
 		pub fn release_candidate_bonds(candidate: T::AccountId) -> DispatchResult {
 			let candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
 				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;

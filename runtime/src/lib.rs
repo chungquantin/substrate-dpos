@@ -205,11 +205,8 @@ impl pallet_dpos::Config for Runtime {
 	type NativeBalance = Balances;
 	type MaxCandidates = MaxCandidates;
 	type ReportNewValidatorSet = StoreNewValidatorSet;
-	type MinCandidateBond = MinCandidateBond;
 	type WeightInfo = ();
 	type RuntimeHoldReason = RuntimeHoldReason;
-	// Assuming blocks happen every 6 seconds, this will be 60 seconds, approximately 10 sconds.
-	type EpochDuration = ConstU32<10>;
 }
 
 impl pallet_authorship::Config for Runtime {

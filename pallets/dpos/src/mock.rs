@@ -1,11 +1,12 @@
-use crate::{self as pallet_dpos, ReportNewValidatorSet};
+use crate::{self as pallet_dpos, BalanceOf, ReportNewValidatorSet};
 use frame_support::{
 	derive_impl, parameter_types,
 	traits::{ConstU16, ConstU32, ConstU64, FindAuthor, Hooks},
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use sp_core::H256;
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup},
+	traits::{BlakeTwo256, BlockNumber, IdentityLookup},
 	BuildStorage,
 };
 
@@ -24,8 +25,6 @@ frame_support::construct_runtime! {
 
 parameter_types! {
 	pub const MaxCandidates: u32 = 10;
-	pub const MinCandidateBond: u128 = 10;
-	pub const EpochDuration: u32 = 100;
 	pub const ExistentialDeposit : u128 = 1;
 }
 
@@ -102,11 +101,7 @@ impl pallet_dpos::Config for Test {
 	type MaxCandidates = MaxCandidates;
 	type ReportNewValidatorSet = DoNothing;
 	type WeightInfo = ();
-	type MinCandidateBond = MinCandidateBond;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	// Assuming blocks happen every 6 seconds, this will be 600 seconds, approximately 10 minutes.
-	// But this is all just test config, but gives you an idea how this is all CONFIGURABLE
-	type EpochDuration = EpochDuration;
 }
 
 pub struct TestAccount {
@@ -127,15 +122,56 @@ pub const ACCOUNT_4: TestAccount = TestAccount { id: 4, balance: 400 };
 pub const ACCOUNT_5: TestAccount = TestAccount { id: 5, balance: 500 };
 pub const ACCOUNT_6: TestAccount = TestAccount { id: 6, balance: 10_000 };
 
-pub struct TestExtBuilder;
+pub struct TestExtBuilder {
+	epoch_duration: BlockNumberFor<Test>,
+	min_candidate_bond: BalanceOf<Test>,
+	max_delegate_count: u32,
+	min_delegate_amount: BalanceOf<Test>,
+	max_total_delegate_amount: BalanceOf<Test>,
+}
 
 impl Default for TestExtBuilder {
 	fn default() -> Self {
-		Self {}
+		Self {
+			epoch_duration: 10,
+			min_candidate_bond: 10,
+			max_delegate_count: 4,
+			min_delegate_amount: 10,
+			max_total_delegate_amount: 300,
+		}
 	}
 }
 
 impl TestExtBuilder {
+	#[allow(dead_code)]
+	pub fn epoch_duration(&mut self, epoch_duration: BlockNumberFor<Test>) -> &mut Self {
+		self.epoch_duration = epoch_duration;
+		self
+	}
+	#[allow(dead_code)]
+	pub fn min_candidate_bond(&mut self, min_candidate_bond: BalanceOf<Test>) -> &mut Self {
+		self.min_candidate_bond = min_candidate_bond;
+		self
+	}
+	#[allow(dead_code)]
+	pub fn max_delegate_count(&mut self, max_delegate_count: u32) -> &mut Self {
+		self.max_delegate_count = max_delegate_count;
+		self
+	}
+	#[allow(dead_code)]
+	pub fn min_delegate_amount(&mut self, min_delegate_amount: BalanceOf<Test>) -> &mut Self {
+		self.min_delegate_amount = min_delegate_amount;
+		self
+	}
+	#[allow(dead_code)]
+	pub fn max_total_delegate_amount(
+		&mut self,
+		max_total_delegate_amount: BalanceOf<Test>,
+	) -> &mut Self {
+		self.max_total_delegate_amount = max_total_delegate_amount;
+		self
+	}
+
 	pub fn build(&self) -> sp_io::TestExternalities {
 		let mut storage =
 			frame_system::GenesisConfig::<Test>::default().build_storage().unwrap().into();
@@ -154,13 +190,38 @@ impl TestExtBuilder {
 		}
 		.assimilate_storage(&mut storage);
 
+		let _ = pallet_dpos::GenesisConfig::<Test> {
+			epoch_duration: self.epoch_duration,
+			min_candidate_bond: self.min_candidate_bond,
+			max_delegate_count: self.max_delegate_count,
+			min_delegate_amount: self.min_delegate_amount,
+			max_total_delegate_amount: self.max_total_delegate_amount,
+		}
+		.assimilate_storage(&mut storage);
+
 		let mut ext = sp_io::TestExternalities::from(storage);
 
 		ext.execute_with(|| {
 			System::set_block_number(1);
-			<Dpos as Hooks<u64>>::on_initialize(1);
+			Dpos::on_initialize(1);
 		});
 
 		ext
+	}
+
+	pub fn next_block(&self) {
+		System::set_block_number(System::block_number() + 1);
+		System::on_initialize(System::block_number());
+		Dpos::on_initialize(System::block_number());
+	}
+
+	pub fn run_to_block(&self, n: BlockNumberFor<Test>) {
+		while System::block_number() < n {
+			if System::block_number() > 1 {
+				Dpos::on_finalize(System::block_number());
+				System::on_finalize(System::block_number());
+			}
+			self.next_block();
+		}
 	}
 }
