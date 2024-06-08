@@ -99,7 +99,7 @@ impl pallet_dpos::Config for Test {
 	type MaxValidators = MaxValidators;
 	type ReportNewValidatorSet = DoNothing;
 	type WeightInfo = ();
-	type MinCandidateStake = ConstU32<10>;
+	type MinCandidateBond = ConstU32<10>;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

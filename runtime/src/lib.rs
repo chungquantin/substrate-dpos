@@ -166,7 +166,7 @@ impl pallet_assets::Config for Runtime {
 
 parameter_types! {
 	pub const MaxValidators: u32 = 10;
-	pub const MinCandidateStake: u32 = 10;
+	pub const MinCandidateBond: u32 = 10;
 }
 
 pub struct BlockAuthor;
@@ -205,7 +205,7 @@ impl pallet_dpos::Config for Runtime {
 	type NativeBalance = Balances;
 	type MaxValidators = MaxValidators;
 	type ReportNewValidatorSet = StoreNewValidatorSet;
-	type MinCandidateStake = MinCandidateStake;
+	type MinCandidateBond = MinCandidateBond;
 	type WeightInfo = ();
 }
 

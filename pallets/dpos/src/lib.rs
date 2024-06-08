@@ -51,9 +51,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxValidators: Get<u32>;
 
-		/// The minimum number of stake that the candidate need to provide
+		/// The minimum number of stake that the candidate need to provide to secure slot
 		#[pallet::constant]
-		type MinCandidateStake: Get<u32>;
+		type MinCandidateBond: Get<u32>;
 
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
