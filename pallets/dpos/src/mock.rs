@@ -6,7 +6,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_core::H256;
 use sp_runtime::{
-	traits::{BlakeTwo256, BlockNumber, IdentityLookup},
+	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
 
@@ -25,7 +25,7 @@ frame_support::construct_runtime! {
 
 parameter_types! {
 	pub const MaxCandidates: u32 = 10;
-	pub const MaxCandidateDelegators: u32 = 2;
+	pub const MaxCandidateDelegators: u32 = 5;
 	pub const ExistentialDeposit : u128 = 1;
 }
 

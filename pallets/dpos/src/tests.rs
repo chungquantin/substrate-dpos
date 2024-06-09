@@ -190,7 +190,7 @@ mod delegate_candidate {
 	}
 
 	#[test]
-	fn should_ok_multiple_delegate_one_candidate_successfully() {
+	fn should_ok_one_delegator_one_candidate_successfully() {
 		let mut ext = TestExtBuilder::default();
 		let candidate = ACCOUNT_3;
 		ext.min_candidate_bond(20)
@@ -269,7 +269,7 @@ mod delegate_candidate {
 	}
 
 	#[test]
-	fn should_ok_multiple_delegate_multiple_candidate_successfully() {
+	fn should_ok_one_delegator_multiple_candidates_successfully() {
 		use frame_support::traits::fungible::InspectHold;
 		let mut ext = TestExtBuilder::default();
 		ext.min_candidate_bond(20)
@@ -366,9 +366,9 @@ mod delegate_candidate {
 				);
 				assert_eq!(
 					Balances::free_balance(ACCOUNT_6.id),
-					ACCOUNT_6.balance -
-						delegated_amount_1 - delegated_amount_2 -
-						delegated_amount_3
+					ACCOUNT_6.balance
+						- delegated_amount_1 - delegated_amount_2
+						- delegated_amount_3
 				);
 				assert_eq!(
 					Balances::total_balance_on_hold(&ACCOUNT_6.id),
@@ -392,6 +392,145 @@ mod delegate_candidate {
 						bond: 70,
 						total_delegations: delegated_amount_3,
 						registered_at: 100
+					})
+				);
+			});
+	}
+
+	#[test]
+	fn should_ok_multiple_delegators_one_candidate_successfully() {
+		use frame_support::traits::fungible::InspectHold;
+		let mut ext = TestExtBuilder::default();
+		ext.min_candidate_bond(20)
+			.min_delegate_amount(50)
+			.max_delegate_count(3)
+			.max_total_delegate_amount(500)
+			.build()
+			.execute_with(|| {
+				let candidate = ACCOUNT_3;
+				let (delegator_1, delegator_2, delegator_3) = (ACCOUNT_4, ACCOUNT_5, ACCOUNT_6);
+				let (delegated_amount_1, delegated_amount_2, delegated_amount_3) = (100, 150, 150);
+
+				assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+				assert_eq!(
+					CandidateDetailMap::<Test>::get(candidate.id),
+					Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				);
+
+				TestExtBuilder::run_to_block(5);
+
+				// Frst delegator
+				assert_ok!(Dpos::delegate_candidate(
+					ros(delegator_1.id),
+					candidate.id,
+					delegated_amount_1
+				));
+				assert_eq!(DelegateCountMap::<Test>::get(delegator_1.id), 1);
+				assert_eq!(
+					DelegationInfos::<Test>::get(delegator_1.id, candidate.id),
+					Some(DelegationInfo { amount: delegated_amount_1, last_modified_at: 5 })
+				);
+				assert_eq!(
+					Balances::free_balance(delegator_1.id),
+					delegator_1.balance - delegated_amount_1
+				);
+				assert_eq!(Balances::total_balance_on_hold(&delegator_1.id), delegated_amount_1);
+
+				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+					candidate_id: candidate.id,
+					delegated_by: delegator_1.id,
+					amount: delegated_amount_1,
+				}));
+
+				assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 1);
+				TestExtBuilder::run_to_block(10);
+
+				// Second delegator
+				assert_ok!(Dpos::delegate_candidate(
+					ros(delegator_2.id),
+					candidate.id,
+					delegated_amount_2
+				));
+				assert_eq!(DelegateCountMap::<Test>::get(delegator_2.id), 1);
+				assert_eq!(
+					DelegationInfos::<Test>::get(delegator_2.id, candidate.id),
+					Some(DelegationInfo { amount: delegated_amount_2, last_modified_at: 10 })
+				);
+				assert_eq!(
+					Balances::free_balance(delegator_2.id),
+					delegator_2.balance - delegated_amount_2
+				);
+				assert_eq!(Balances::total_balance_on_hold(&delegator_2.id), delegated_amount_2);
+
+				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+					candidate_id: candidate.id,
+					delegated_by: delegator_2.id,
+					amount: delegated_amount_2,
+				}));
+
+				assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 2);
+				TestExtBuilder::run_to_block(20);
+
+				// Third delegator
+				assert_ok!(Dpos::delegate_candidate(
+					ros(delegator_3.id),
+					candidate.id,
+					delegated_amount_3
+				));
+				assert_eq!(DelegateCountMap::<Test>::get(delegator_3.id), 1);
+				assert_eq!(
+					DelegationInfos::<Test>::get(delegator_3.id, candidate.id),
+					Some(DelegationInfo { amount: delegated_amount_3, last_modified_at: 20 })
+				);
+				assert_eq!(
+					Balances::free_balance(delegator_3.id),
+					delegator_3.balance - delegated_amount_3
+				);
+				assert_eq!(Balances::total_balance_on_hold(&delegator_3.id), delegated_amount_3);
+
+				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+					candidate_id: candidate.id,
+					delegated_by: delegator_3.id,
+					amount: delegated_amount_3,
+				}));
+
+				assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 3);
+				TestExtBuilder::run_to_block(100);
+
+				// First delegator again
+				assert_ok!(Dpos::delegate_candidate(
+					ros(delegator_1.id),
+					candidate.id,
+					delegated_amount_1
+				));
+				assert_eq!(DelegateCountMap::<Test>::get(delegator_1.id), 1);
+				assert_eq!(
+					DelegationInfos::<Test>::get(delegator_1.id, candidate.id),
+					Some(DelegationInfo { amount: delegated_amount_1 * 2, last_modified_at: 100 })
+				);
+				assert_eq!(
+					Balances::free_balance(delegator_1.id),
+					delegator_1.balance - delegated_amount_1 * 2
+				);
+				assert_eq!(
+					Balances::total_balance_on_hold(&delegator_1.id),
+					delegated_amount_1 * 2
+				);
+
+				System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+					candidate_id: candidate.id,
+					delegated_by: delegator_1.id,
+					amount: delegated_amount_1,
+				}));
+
+				assert_eq!(
+					CandidateDetailMap::<Test>::get(candidate.id),
+					Some(CandidateDetail {
+						bond: 40,
+						total_delegations: delegated_amount_3
+							+ delegated_amount_1 + delegated_amount_2
+							+ delegated_amount_1,
+						registered_at: 1
 					})
 				);
 			});
