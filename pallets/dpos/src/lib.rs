@@ -20,7 +20,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		sp_runtime::traits::{CheckedAdd, Zero},
+		sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
 		traits::{fungible, fungible::MutateHold, tokens::Precision, FindAuthor},
 		Twox64Concat,
 	};
@@ -244,8 +244,6 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
 			let delegator = ensure_signed(origin)?;
-			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
-				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
 			match DelegationInfos::<T>::try_get(&delegator, &candidate) {
 				Ok(mut delegation_info) => {
 					// Update the delegated amount of the existing delegation info
@@ -282,8 +280,8 @@ pub mod pallet {
 			};
 
 			T::NativeBalance::hold(&HoldReason::DelegateAmountReserved.into(), &delegator, amount)?;
-			candidate_detail.add_delegated_amount(amount)?;
-			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
+
+			Self::increase_candidate_delegations(&candidate, &amount)?;
 
 			Self::deposit_event(Event::CandidateDelegated {
 				candidate_id: candidate,
@@ -294,12 +292,6 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(2)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn delay_undelegate(_origin: OriginFor<T>) -> DispatchResult {
-			todo!("Unstaking from the delegates or unstaking bond (scheduled)")
-		}
-
-		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
 			let validator = ensure_signed(origin)?;
@@ -322,7 +314,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(4)]
+		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let candidate = ensure_signed(origin)?;
@@ -343,7 +335,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(5)]
+		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn undelegate_candidate(
 			origin: OriginFor<T>,
@@ -354,26 +346,19 @@ pub mod pallet {
 			let mut delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
 				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
 
-			let new_delegated_amount = match delegation_info.amount.checked_add(&amount) {
+			let new_delegated_amount = match delegation_info.amount.checked_sub(&amount) {
 				Some(value) => value,
 				None => return Err(Error::<T>::InsufficientDelegatedAmount.into()),
 			};
 
 			if new_delegated_amount.is_zero() {
 				Self::remove_candidate_delegation(&delegator, &candidate);
-
-				// Remove delegator from the candidate delegators vector
-				let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
-				if let Ok(indx) = candidate_delegators.binary_search(&delegator) {
-					candidate_delegators.remove(indx);
-				}
-				CandidateDelegators::<T>::set(&candidate, candidate_delegators);
 			} else {
 				Self::check_delegated_amount(new_delegated_amount)?;
-
 				delegation_info.update_delegated_amount(new_delegated_amount);
 				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 			}
+			Self::decrease_candidate_delegations(&candidate, &amount)?;
 			Ok(())
 		}
 
@@ -399,11 +384,42 @@ pub mod pallet {
 			frame_system::Pallet::<T>::block_number()
 		}
 
+		fn decrease_candidate_delegations(
+			candidate: &T::AccountId,
+			amount: &BalanceOf<T>,
+		) -> DispatchResult {
+			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
+				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+			candidate_detail.sub_delegated_amount(*amount)?;
+			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
+
+			Ok(())
+		}
+
+		fn increase_candidate_delegations(
+			candidate: &T::AccountId,
+			amount: &BalanceOf<T>,
+		) -> DispatchResult {
+			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
+				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+			candidate_detail.add_delegated_amount(*amount)?;
+			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
+
+			Ok(())
+		}
+
 		fn remove_candidate_delegation(delegator: &T::AccountId, candidate: &T::AccountId) {
 			DelegationInfos::<T>::remove(&delegator, &candidate);
 
 			let delegate_count = DelegateCountMap::<T>::get(&delegator);
 			DelegateCountMap::<T>::set(&delegator, delegate_count.saturating_sub(1));
+
+			// Remove delegator from the candidate delegators vector
+			let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
+			if let Ok(indx) = candidate_delegators.binary_search(&delegator) {
+				candidate_delegators.remove(indx);
+			}
+			CandidateDelegators::<T>::set(&candidate, candidate_delegators);
 		}
 
 		fn deregister_candidate_inner(candidate: &T::AccountId) {
