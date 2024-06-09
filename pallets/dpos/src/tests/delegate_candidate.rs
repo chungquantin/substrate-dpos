@@ -92,6 +92,7 @@ fn should_ok_delegate_candidate_successfully() {
 			candidate_id: candidate.id,
 			delegated_by: ACCOUNT_4.id,
 			amount: 200,
+			total_delegated_amount: 200,
 		}));
 
 		assert_eq!(
@@ -140,6 +141,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: ACCOUNT_4.id,
 				amount: 200,
+				total_delegated_amount: 200,
 			}));
 
 			TestExtBuilder::run_to_block(10);
@@ -166,6 +168,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: ACCOUNT_4.id,
 				amount: delegated_amount_2,
+				total_delegated_amount: sum_delegated_amount,
 			}));
 
 			assert_eq!(
@@ -220,6 +223,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				candidate_id: candidate_1.id,
 				delegated_by: ACCOUNT_6.id,
 				amount: delegated_amount_1,
+				total_delegated_amount: delegated_amount_1,
 			}));
 
 			TestExtBuilder::run_to_block(10);
@@ -249,6 +253,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				candidate_id: candidate_2.id,
 				delegated_by: ACCOUNT_6.id,
 				amount: delegated_amount_2,
+				total_delegated_amount: delegated_amount_2,
 			}));
 
 			assert_eq!(
@@ -292,6 +297,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				candidate_id: candidate_3.id,
 				delegated_by: ACCOUNT_6.id,
 				amount: delegated_amount_3,
+				total_delegated_amount: delegated_amount_3,
 			}));
 
 			assert_eq!(
@@ -347,6 +353,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_1.id,
 				amount: delegated_amount_1,
+				total_delegated_amount: delegated_amount_1,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 1);
@@ -377,6 +384,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_2.id,
 				amount: delegated_amount_2,
+				total_delegated_amount: delegated_amount_1 + delegated_amount_2,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 2);
@@ -403,6 +411,8 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_3.id,
 				amount: delegated_amount_3,
+				total_delegated_amount: delegated_amount_1 +
+					delegated_amount_2 + delegated_amount_3,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 3);
@@ -433,6 +443,9 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_1.id,
 				amount: delegated_amount_1,
+				total_delegated_amount: delegated_amount_1 +
+					delegated_amount_2 + delegated_amount_3 +
+					delegated_amount_1,
 			}));
 
 			assert_eq!(

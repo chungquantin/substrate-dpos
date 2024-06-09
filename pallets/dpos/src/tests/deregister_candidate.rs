@@ -42,6 +42,9 @@ fn should_ok_deregister_sucessfully() {
 
 		// Then deregister
 		assert_ok!(Dpos::deregister_candidate(ros(succes_acc)));
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
+			candidate_id: succes_acc,
+		}));
 		assert_eq!(CandidateDetailMap::<Test>::get(succes_acc), None);
 		assert_eq!(CandidateRegistrations::<Test>::get(), vec![]);
 
@@ -134,6 +137,9 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 
 		// Deregister candidate 1 from the candidate pool
 		assert_ok!(Dpos::deregister_candidate(ros(candidate_1)));
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
+			candidate_id: candidate_1,
+		}));
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_1), None);
 		assert_ne!(CandidateDetailMap::<Test>::get(candidate_2), None);
 		assert_ne!(CandidateDetailMap::<Test>::get(candidate_3), None);
@@ -147,6 +153,9 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 
 		// Deregister candidate 3 from the candidate pool
 		assert_ok!(Dpos::deregister_candidate(ros(candidate_3)));
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
+			candidate_id: candidate_3,
+		}));
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_1), None);
 		assert_ne!(CandidateDetailMap::<Test>::get(candidate_2), None);
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_3), None);
@@ -157,6 +166,9 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 
 		// Deregister candidate 2 from the candidate pool
 		assert_ok!(Dpos::deregister_candidate(ros(candidate_2)));
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
+			candidate_id: candidate_2,
+		}));
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_1), None);
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_2), None);
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_3), None);
@@ -205,6 +217,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_1.id,
 				amount: delegated_amount_1,
+				total_delegated_amount: delegated_amount_1,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 1);
@@ -231,6 +244,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_2.id,
 				amount: delegated_amount_2,
+				total_delegated_amount: delegated_amount_1 + delegated_amount_2,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 2);
@@ -257,6 +271,8 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_3.id,
 				amount: delegated_amount_3,
+				total_delegated_amount: delegated_amount_1
+					+ delegated_amount_2 + delegated_amount_3,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 3);
@@ -283,15 +299,18 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_1.id,
 				amount: delegated_amount_1,
+				total_delegated_amount: delegated_amount_1
+					+ delegated_amount_2 + delegated_amount_3
+					+ delegated_amount_1,
 			}));
 
 			assert_eq!(
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail {
 					bond: 40,
-					total_delegations: delegated_amount_3 +
-						delegated_amount_1 + delegated_amount_2 +
-						delegated_amount_1,
+					total_delegations: delegated_amount_3
+						+ delegated_amount_1 + delegated_amount_2
+						+ delegated_amount_1,
 					registered_at: 1
 				})
 			);
@@ -302,6 +321,9 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 
 			// Should clear all data of related delegations and the candidate
 			assert_ok!(Dpos::deregister_candidate(ros(candidate.id)));
+			System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
+				candidate_id: candidate.id,
+			}));
 			assert_eq!(CandidateDetailMap::<Test>::get(candidate.id), None);
 			assert_eq!(CandidateRegistrations::<Test>::get(), vec![]);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![]);

@@ -44,6 +44,7 @@ fn should_ok_delegate_candidate_successfully() {
 			candidate_id: candidate.id,
 			delegated_by: ACCOUNT_4.id,
 			amount: 200,
+			total_delegated_amount: 200,
 		}));
 
 		assert_eq!(
@@ -88,6 +89,7 @@ fn should_failed_undelegate_over_amount() {
 			candidate_id: candidate.id,
 			delegated_by: ACCOUNT_4.id,
 			amount: 200,
+			total_delegated_amount: 200,
 		}));
 
 		assert_eq!(
@@ -126,6 +128,7 @@ fn should_ok_undelegate_all_amount() {
 			candidate_id: candidate.id,
 			delegated_by: ACCOUNT_4.id,
 			amount: 200,
+			total_delegated_amount: 200,
 		}));
 
 		assert_eq!(
@@ -173,6 +176,7 @@ fn should_ok_undelegate_partial_amount() {
 			candidate_id: candidate.id,
 			delegated_by: ACCOUNT_4.id,
 			amount: 200,
+			total_delegated_amount: 200,
 		}));
 
 		assert_eq!(
@@ -225,6 +229,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 			candidate_id: candidate.id,
 			delegated_by: ACCOUNT_4.id,
 			amount: 200,
+			total_delegated_amount: 200,
 		}));
 
 		assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_5.id), candidate.id, 300));
@@ -239,6 +244,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 			candidate_id: candidate.id,
 			delegated_by: ACCOUNT_5.id,
 			amount: 300,
+			total_delegated_amount: 500,
 		}));
 
 		assert_eq!(
@@ -265,6 +271,12 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 		);
 		assert_eq!(Balances::free_balance(ACCOUNT_4.id), ACCOUNT_4.balance - 200 + 75);
 		assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200 - 75);
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateUndelegated {
+			candidate_id: candidate.id,
+			delegator: ACCOUNT_4.id,
+			amount: 75,
+			left_delegated_amount: 200 - 75,
+		}));
 
 		// Undelegate ACCOUNT_5
 		assert_ok!(Dpos::undelegate_candidate(ros(ACCOUNT_5.id), candidate.id, 199));
@@ -283,6 +295,12 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 		);
 		assert_eq!(Balances::free_balance(ACCOUNT_5.id), ACCOUNT_5.balance - 300 + 199);
 		assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_5.id), 300 - 199);
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateUndelegated {
+			candidate_id: candidate.id,
+			delegator: ACCOUNT_5.id,
+			amount: 199,
+			left_delegated_amount: 300 - 199,
+		}));
 
 		// Undelegate ALL from ACCOUNT_5
 		// We expect this will remove the account 5 from the delegation pool of the candidate
@@ -300,5 +318,11 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 		);
 		assert_eq!(Balances::free_balance(ACCOUNT_5.id), ACCOUNT_5.balance - 300 + 199 + 101);
 		assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_5.id), 300 - 199 - 101);
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateUndelegated {
+			candidate_id: candidate.id,
+			delegator: ACCOUNT_5.id,
+			amount: 101,
+			left_delegated_amount: 300 - 199 - 101,
+		}));
 	});
 }

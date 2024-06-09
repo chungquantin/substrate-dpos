@@ -182,10 +182,20 @@ pub mod pallet {
 			candidate_id: T::AccountId,
 			initial_bond: BalanceOf<T>,
 		},
+		CandidateRegistrationRemoved {
+			candidate_id: T::AccountId,
+		},
 		CandidateDelegated {
 			candidate_id: T::AccountId,
 			delegated_by: T::AccountId,
 			amount: BalanceOf<T>,
+			total_delegated_amount: BalanceOf<T>,
+		},
+		CandidateUndelegated {
+			candidate_id: T::AccountId,
+			delegator: T::AccountId,
+			amount: BalanceOf<T>,
+			left_delegated_amount: BalanceOf<T>,
 		},
 	}
 
@@ -247,16 +257,22 @@ pub mod pallet {
 			match DelegationInfos::<T>::try_get(&delegator, &candidate) {
 				Ok(mut delegation_info) => {
 					// Update the delegated amount of the existing delegation info
+					// Must accummulate the existing delegated amount with the new added amount
 					let new_delegated_amount =
 						delegation_info.amount.checked_add(&amount).expect("Overflow");
 					Self::check_delegated_amount(new_delegated_amount)?;
 
+					// Add the delegated amount in delegation info and update the storage value
 					delegation_info.update_delegated_amount(new_delegated_amount);
 					DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 				},
 				Err(_) => {
 					// First time delegate to this candidate
+					// Initializing a new record on the delegation info
 					Self::check_delegated_amount(amount)?;
+
+					// Only allow delegators to delegate a specific number of candidates
+					// In case of direct delegation, the MaxDelegationCoutn will be set to 1
 					let delegate_count = DelegateCountMap::<T>::get(&delegator);
 					let new_delegate_count = delegate_count.saturating_add(1);
 					ensure!(
@@ -264,6 +280,7 @@ pub mod pallet {
 						Error::<T>::TooManyCandidateDelegations
 					);
 					DelegateCountMap::<T>::set(&delegator, new_delegate_count);
+
 					// Add delegator to the candidate delegators vector
 					let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
 					candidate_delegators
@@ -271,22 +288,21 @@ pub mod pallet {
 						.map_err(|_| Error::<T>::TooManyDelegatorsInPool)?;
 					CandidateDelegators::<T>::set(&candidate, candidate_delegators);
 
-					DelegationInfos::<T>::insert(
-						&delegator,
-						&candidate,
-						DelegationInfo::default(amount),
-					);
+					// Initializing a new delegation info between (candidate, delegator)
+					let new_delegation_info = DelegationInfo::default(amount);
+					DelegationInfos::<T>::insert(&delegator, &candidate, new_delegation_info);
 				},
 			};
 
 			T::NativeBalance::hold(&HoldReason::DelegateAmountReserved.into(), &delegator, amount)?;
 
-			Self::increase_candidate_delegations(&candidate, &amount)?;
+			let total_delegated_amount = Self::increase_candidate_delegations(&candidate, &amount)?;
 
 			Self::deposit_event(Event::CandidateDelegated {
 				candidate_id: candidate,
 				delegated_by: delegator,
 				amount,
+				total_delegated_amount,
 			});
 			Ok(())
 		}
@@ -325,15 +341,27 @@ pub mod pallet {
 			);
 
 			let candidate_delegators = CandidateDelegators::<T>::get(&candidate);
+
+			// Processing all the delegators of the candidate
 			for delegator in candidate_delegators.into_inner() {
 				let delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
 					.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+
+				// Trying to release all the hold amount of the delegators
 				Self::release_delegated_amount(&delegator, &delegation_info.amount)?;
+
+				// Removing any information related to the delegation between (candidate, delegator)
 				Self::remove_candidate_delegation(&delegator, &candidate);
 			}
 			CandidateDelegators::<T>::set(&candidate, BoundedVec::default());
+
+			// Releasing the hold bonds of the candidate
 			Self::release_candidate_bonds(&candidate)?;
+
+			// Removing any information related the registration of the candidate in the pool
 			Self::deregister_candidate_inner(&candidate);
+
+			Self::deposit_event(Event::CandidateRegistrationRemoved { candidate_id: candidate });
 			Ok(())
 		}
 
@@ -363,6 +391,13 @@ pub mod pallet {
 			}
 			Self::release_delegated_amount(&delegator, &amount)?;
 			Self::decrease_candidate_delegations(&candidate, &amount)?;
+
+			Self::deposit_event(Event::CandidateUndelegated {
+				candidate_id: candidate,
+				delegator,
+				amount,
+				left_delegated_amount: new_delegated_amount,
+			});
 			Ok(())
 		}
 
@@ -391,25 +426,25 @@ pub mod pallet {
 		fn decrease_candidate_delegations(
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
-		) -> DispatchResult {
+		) -> DispatchResultWithValue<BalanceOf<T>> {
 			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
 				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
-			candidate_detail.sub_delegated_amount(*amount)?;
+			let total_delegated_amount = candidate_detail.sub_delegated_amount(*amount)?;
 			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
 
-			Ok(())
+			Ok(total_delegated_amount)
 		}
 
 		fn increase_candidate_delegations(
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
-		) -> DispatchResult {
+		) -> DispatchResultWithValue<BalanceOf<T>> {
 			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
 				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
-			candidate_detail.add_delegated_amount(*amount)?;
+			let total_delegated_amount = candidate_detail.add_delegated_amount(*amount)?;
 			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
 
-			Ok(())
+			Ok(total_delegated_amount)
 		}
 
 		fn remove_candidate_delegation(delegator: &T::AccountId, candidate: &T::AccountId) {
