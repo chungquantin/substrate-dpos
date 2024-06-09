@@ -25,7 +25,8 @@ pub mod pallet {
 		Twox64Concat,
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
-	use sp_std::prelude::*;
+	use sp_runtime::BoundedVec;
+	use sp_std::{prelude::*, vec::Vec};
 
 	pub trait ReportNewValidatorSet<AccountId> {
 		fn report_new_validator_set(_new_set: Vec<AccountId>) {}
@@ -56,6 +57,10 @@ pub mod pallet {
 		/// The maximum number of authorities that the pallet can hold.
 		#[pallet::storage]
 		type MaxCandidates: Get<u32>;
+
+		/// The maximum number of delegators that the candidate can have
+		#[pallet::storage]
+		type MaxCandidateDelegators: Get<u32>;
 
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
@@ -90,6 +95,11 @@ pub mod pallet {
 	#[pallet::getter(fn max_total_delegate_amount)]
 	pub type MaxTotalDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn total_active_candidates)]
+	/// The total candidates are assigned to the active set
+	pub(crate) type TotalActiveCandidates<T: Config> = StorageValue<_, u32, ValueQuery>;
+
 	/// We use a configurable constant `BlockNumber` to tell us when we should trigger the
 	/// validator set change. The runtime developer should implement this to represent the time
 	/// they want validators to change, but for your pallet, you just care about the block
@@ -116,15 +126,15 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
-	/// The maximum number of candidates that delegators can delegate to
+	/// The number of candidates that delegators delegated to
 	#[pallet::storage]
-	#[pallet::getter(fn delegate_count_map)]
+	#[pallet::getter(fn delegate_count)]
 	pub type DelegateCountMap<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, u32, ValueQuery>;
 
 	/// DelegationInfos[(delegator_id, validator_id, delegated_amount)]
 	#[pallet::storage]
-	#[pallet::getter(fn delegate_infos)]
+	#[pallet::getter(fn delegation_infos)]
 	pub type DelegationInfos<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat,
@@ -133,6 +143,17 @@ pub mod pallet {
 		T::AccountId,
 		DelegationInfo<T>,
 		OptionQuery,
+	>;
+
+	/// Maximum number of delegators that candidate can have
+	#[pallet::storage]
+	#[pallet::getter(fn candidate_delegators)]
+	pub type CandidateDelegators<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		T::AccountId,
+		BoundedVec<T::AccountId, <T as Config>::MaxCandidateDelegators>,
+		ValueQuery,
 	>;
 
 	#[pallet::genesis_config]
@@ -190,11 +211,14 @@ pub mod pallet {
 	pub enum Error<T> {
 		TooManyValidators,
 		TooManyCandidateDelegations,
+		TooManyDelegatorsInPool,
 		CandidateAlreadyExist,
 		CandidateDoesNotExist,
+		DelegationDoesNotExist,
 		OverMaximumTotalDelegateAmount,
 		BelowMinimumDelegateAmount,
 		BelowMinimumCandidateBond,
+		InsufficientDelegatedAmount,
 	}
 
 	/// A reason for the pallet dpos placing a hold on funds.
@@ -208,14 +232,6 @@ pub mod pallet {
 	}
 
 	impl<T: Config> DelayExecutor<T> for Pallet<T> {
-		fn execute_deregister_candidate(_origin: OriginFor<T>) -> DispatchResult {
-			unimplemented!();
-		}
-
-		fn execute_undelegate(_origin: OriginFor<T>) -> DispatchResult {
-			unimplemented!();
-		}
-
 		fn execute_reward_payout(_origin: OriginFor<T>) -> DispatchResult {
 			unimplemented!();
 		}
@@ -238,21 +254,32 @@ pub mod pallet {
 					// Update the delegated amount of the existing delegation info
 					let new_delegated_amount =
 						delegation_info.amount.checked_add(&amount).expect("Overflow");
-					Self::check_delegate_payload(&delegator, new_delegated_amount)?;
+					Self::check_delegated_amount(new_delegated_amount)?;
 
-					delegation_info.amount = new_delegated_amount;
-					delegation_info.last_modified_at = Self::current_block_number();
+					delegation_info.update_delegated_amount(new_delegated_amount);
 					DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 				},
 				Err(_) => {
 					// First time delegate to this candidate
-					Self::check_delegate_payload(&delegator, amount)?;
+					Self::check_delegated_amount(amount)?;
 					let delegate_count = DelegateCountMap::<T>::get(&delegator);
-					DelegateCountMap::<T>::set(&delegator, delegate_count + 1);
+					let new_delegate_count = delegate_count.saturating_add(1);
+					ensure!(
+						new_delegate_count <= MaxDelegateCount::<T>::get(),
+						Error::<T>::TooManyCandidateDelegations
+					);
+					DelegateCountMap::<T>::set(&delegator, new_delegate_count);
+					// Add delegator to the candidate delegators vector
+					let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
+					candidate_delegators
+						.try_push(delegator.clone())
+						.map_err(|_| Error::<T>::TooManyDelegatorsInPool)?;
+					CandidateDelegators::<T>::set(&candidate, candidate_delegators);
+
 					DelegationInfos::<T>::insert(
 						&delegator,
 						&candidate,
-						DelegationInfo { amount, last_modified_at: Self::current_block_number() },
+						DelegationInfo::default(amount),
 					);
 				},
 			};
@@ -280,13 +307,16 @@ pub mod pallet {
 		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
 			let validator = ensure_signed(origin)?;
 
-			// Update the registration list of candidates
-			let mut candidate_registrations = CandidateRegistrations::<T>::get();
-			candidate_registrations
-				.try_push(CandidateRegitrationRequest { bond, request_by: validator.clone() })
-				.map_err(|_| Error::<T>::TooManyValidators)?;
+			ensure!(bond >= MinCandidateBond::<T>::get(), Error::<T>::BelowMinimumCandidateBond);
+			// Only hold the funds of a user which has no holds already.
+			ensure!(
+				!CandidateDetailMap::<T>::contains_key(&validator),
+				Error::<T>::CandidateAlreadyExist
+			);
 
-			Self::hold_candidate_bond(&validator, bond)?;
+			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
+
+			Self::register_as_candidate_inner(&validator, bond)?;
 
 			Self::deposit_event(Event::CandidateRegistered {
 				candidate_id: validator,
@@ -305,6 +335,62 @@ pub mod pallet {
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn cancel_candidate_exit(_origin: OriginFor<T>) -> DispatchResult {
 			todo!("Cancel the request to exit the candidate pool");
+		}
+
+		#[pallet::call_index(9)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
+			let candidate = ensure_signed(origin)?;
+			// Only hold the funds of a user which has no holds already.
+			ensure!(
+				CandidateDetailMap::<T>::contains_key(&candidate),
+				Error::<T>::CandidateDoesNotExist
+			);
+
+			Self::release_candidate_bonds(&candidate)?;
+
+			Self::deregister_candidate_inner(&candidate);
+
+			let candidate_delegators = CandidateDelegators::<T>::get(&candidate);
+			for delegator in candidate_delegators.into_iter() {
+				Self::remove_delegation(&delegator, &candidate);
+				Self::release_delegated_amount(&delegator, &candidate)?;
+			}
+			Ok(())
+		}
+
+		#[pallet::call_index(10)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn undelegate_candidate(
+			origin: OriginFor<T>,
+			candidate: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let delegator = ensure_signed(origin)?;
+			let mut delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
+				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+
+			let new_delegated_amount = match delegation_info.amount.checked_add(&amount) {
+				Some(value) => value,
+				None => return Err(Error::<T>::InsufficientDelegatedAmount.into()),
+			};
+
+			if new_delegated_amount.is_zero() {
+				Self::remove_delegation(&delegator, &candidate);
+
+				// Remove delegator from the candidate delegators vector
+				let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
+				if let Ok(indx) = candidate_delegators.binary_search(&delegator) {
+					candidate_delegators.remove(indx);
+				}
+				CandidateDelegators::<T>::set(&candidate, candidate_delegators);
+			} else {
+				Self::check_delegated_amount(new_delegated_amount)?;
+
+				delegation_info.update_delegated_amount(new_delegated_amount);
+				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
+			}
+			Ok(())
 		}
 
 		/// An example of directly updating the authorities into [`Config::ReportNewValidatorSet`].
@@ -329,32 +415,35 @@ pub mod pallet {
 			frame_system::Pallet::<T>::block_number()
 		}
 
-		fn check_delegate_payload(
-			delegator: &T::AccountId,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
-			let (max_delegate_amount, min_delegate_amount, max_delegate_count) = (
-				MaxTotalDelegateAmount::<T>::get(),
-				MinDelegateAmount::<T>::get(),
-				MaxDelegateCount::<T>::get(),
-			);
-			ensure!(
-				DelegateCountMap::<T>::get(&delegator) + 1 <= max_delegate_count,
-				Error::<T>::TooManyCandidateDelegations
-			);
-			ensure!(amount < max_delegate_amount, Error::<T>::OverMaximumTotalDelegateAmount);
-			ensure!(amount >= min_delegate_amount, Error::<T>::BelowMinimumDelegateAmount);
-			Ok(())
+		fn deregister_candidate_inner(candidate: &T::AccountId) {
+			// Remove candidate registration
+			let mut candidate_registrations = CandidateRegistrations::<T>::get();
+			candidate_registrations.retain(|registration| registration.request_by != *candidate);
+			CandidateRegistrations::<T>::set(candidate_registrations);
+			// CandidateDelegators:<T>::remove(&candidate);
+			CandidateDetailMap::<T>::remove(&candidate);
 		}
 
-		pub fn hold_candidate_bond(validator: &T::AccountId, bond: BalanceOf<T>) -> DispatchResult {
-			ensure!(bond >= MinCandidateBond::<T>::get(), Error::<T>::BelowMinimumCandidateBond);
-			// Only hold the funds of a user which has no holds already.
-			ensure!(
-				!CandidateDetailMap::<T>::contains_key(&validator),
-				Error::<T>::CandidateAlreadyExist
-			);
-			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
+		fn remove_delegation(candidate: &T::AccountId, delegator: &T::AccountId) {
+			// Remove the delegation
+			DelegationInfos::<T>::remove(&delegator, &candidate);
+
+			// Decrease the number of delegators that candidate has
+			let delegate_count = DelegateCountMap::<T>::get(&delegator);
+			DelegateCountMap::<T>::set(&delegator, delegate_count.saturating_sub(1));
+		}
+
+		fn register_as_candidate_inner(
+			validator: &T::AccountId,
+			bond: BalanceOf<T>,
+		) -> DispatchResult {
+			// Update the registration list of candidates
+			let mut candidate_registrations = CandidateRegistrations::<T>::get();
+			candidate_registrations
+				.try_push(CandidateRegitrationRequest { bond, request_by: validator.clone() })
+				.map_err(|_| Error::<T>::TooManyValidators)?;
+			CandidateRegistrations::<T>::set(candidate_registrations);
+
 			// Store the amount held in our local storage.
 			CandidateDetailMap::<T>::insert(
 				&validator,
@@ -367,14 +456,39 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn release_candidate_bonds(candidate: T::AccountId) -> DispatchResult {
+		fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
+			let (max_delegate_amount, min_delegate_amount) =
+				(MaxTotalDelegateAmount::<T>::get(), MinDelegateAmount::<T>::get());
+
+			ensure!(amount < max_delegate_amount, Error::<T>::OverMaximumTotalDelegateAmount);
+			ensure!(amount >= min_delegate_amount, Error::<T>::BelowMinimumDelegateAmount);
+			Ok(())
+		}
+
+		/// Releasing the hold balance amount of candidate
+		pub fn release_candidate_bonds(candidate: &T::AccountId) -> DispatchResult {
 			let candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
 				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
-			// NOTE: I am NOT using `T::HoldAmount::get()`... Why is that important?
 			T::NativeBalance::release(
 				&HoldReason::CandidateBondReserved.into(),
 				&candidate,
 				candidate_detail.bond,
+				Precision::BestEffort,
+			)?;
+			Ok(())
+		}
+
+		/// Releasing the hold balance amount of delegator
+		pub fn release_delegated_amount(
+			delegator: &T::AccountId,
+			candidate: &T::AccountId,
+		) -> DispatchResult {
+			let delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
+				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+			T::NativeBalance::release(
+				&HoldReason::DelegateAmountReserved.into(),
+				&delegator,
+				delegation_info.amount,
 				Precision::BestEffort,
 			)?;
 			Ok(())

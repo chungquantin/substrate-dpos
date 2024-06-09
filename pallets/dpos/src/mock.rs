@@ -25,6 +25,7 @@ frame_support::construct_runtime! {
 
 parameter_types! {
 	pub const MaxCandidates: u32 = 10;
+	pub const MaxCandidateDelegators: u32 = 2;
 	pub const ExistentialDeposit : u128 = 1;
 }
 
@@ -99,6 +100,7 @@ impl pallet_dpos::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type NativeBalance = Balances;
 	type MaxCandidates = MaxCandidates;
+	type MaxCandidateDelegators = MaxCandidateDelegators;
 	type ReportNewValidatorSet = DoNothing;
 	type WeightInfo = ();
 	type RuntimeHoldReason = RuntimeHoldReason;
