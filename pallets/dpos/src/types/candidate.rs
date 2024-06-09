@@ -1,6 +1,7 @@
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	dispatch::DispatchResult, sp_runtime::traits::CheckedAdd, sp_runtime::traits::CheckedSub,
+	dispatch::DispatchResult,
+	sp_runtime::traits::{CheckedAdd, CheckedSub},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use scale_info::TypeInfo;

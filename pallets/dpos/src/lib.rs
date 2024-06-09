@@ -326,7 +326,9 @@ pub mod pallet {
 
 			let candidate_delegators = CandidateDelegators::<T>::get(&candidate);
 			for delegator in candidate_delegators.into_inner() {
-				Self::release_delegated_amount(&delegator, &candidate)?;
+				let delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
+					.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+				Self::release_delegated_amount(&delegator, &delegation_info.amount)?;
 				Self::remove_candidate_delegation(&delegator, &candidate);
 			}
 			CandidateDelegators::<T>::set(&candidate, BoundedVec::default());
@@ -355,9 +357,11 @@ pub mod pallet {
 				Self::remove_candidate_delegation(&delegator, &candidate);
 			} else {
 				Self::check_delegated_amount(new_delegated_amount)?;
+
 				delegation_info.update_delegated_amount(new_delegated_amount);
 				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 			}
+			Self::release_delegated_amount(&delegator, &amount)?;
 			Self::decrease_candidate_delegations(&candidate, &amount)?;
 			Ok(())
 		}
@@ -476,14 +480,12 @@ pub mod pallet {
 		/// Releasing the hold balance amount of delegator
 		pub fn release_delegated_amount(
 			delegator: &T::AccountId,
-			candidate: &T::AccountId,
+			amount: &BalanceOf<T>,
 		) -> DispatchResult {
-			let delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
-				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
 			T::NativeBalance::release(
 				&HoldReason::DelegateAmountReserved.into(),
 				&delegator,
-				delegation_info.amount,
+				*amount,
 				Precision::BestEffort,
 			)?;
 			Ok(())
