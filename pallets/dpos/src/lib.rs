@@ -79,21 +79,21 @@ pub mod pallet {
 	#[pallet::getter(fn min_candidate_bond)]
 	pub type MinCandidateBond<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
+	#[pallet::type_value]
+	pub fn DefaultMaxDelegateCount<T: Config>() -> u32 {
+		1
+	}
+
 	/// The maximum number of candidates that delegators can delegate to
 	#[pallet::storage]
 	#[pallet::getter(fn max_delegate_count)]
-	pub type MaxDelegateCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+	pub type MaxDelegateCount<T: Config> =
+		StorageValue<_, u32, ValueQuery, DefaultMaxDelegateCount<T>>;
 
 	/// The minimum number of delegate amount that the delegator need to provide for one candidate
 	#[pallet::storage]
 	#[pallet::getter(fn min_delegate_amount)]
 	pub type MinDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
-
-	/// The maximum number of total delegate amount that the delegator can delegate for one
-	/// candidate
-	#[pallet::storage]
-	#[pallet::getter(fn max_total_delegate_amount)]
-	pub type MaxTotalDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn total_active_candidates)]
@@ -161,7 +161,6 @@ pub mod pallet {
 	pub struct GenesisConfig<T: Config> {
 		pub min_candidate_bond: BalanceOf<T>,
 		pub max_delegate_count: u32,
-		pub max_total_delegate_amount: BalanceOf<T>,
 		pub min_delegate_amount: BalanceOf<T>,
 		pub epoch_duration: BlockNumberFor<T>,
 	}
@@ -171,7 +170,6 @@ pub mod pallet {
 		fn build(&self) {
 			MinCandidateBond::<T>::put(self.min_candidate_bond);
 			MaxDelegateCount::<T>::put(self.max_delegate_count);
-			MaxTotalDelegateAmount::<T>::put(self.max_total_delegate_amount);
 			MinDelegateAmount::<T>::put(self.min_delegate_amount);
 			EpochDuration::<T>::put(self.epoch_duration);
 		}
@@ -215,7 +213,6 @@ pub mod pallet {
 		CandidateAlreadyExist,
 		CandidateDoesNotExist,
 		DelegationDoesNotExist,
-		OverMaximumTotalDelegateAmount,
 		BelowMinimumDelegateAmount,
 		BelowMinimumCandidateBond,
 		InsufficientDelegatedAmount,
@@ -325,19 +322,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(6)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn delay_candidate_exit(_origin: OriginFor<T>) -> DispatchResult {
-			todo!("Candidate leave the candidate pools, delegators token will be unlocked");
-		}
-
-		#[pallet::call_index(7)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn cancel_candidate_exit(_origin: OriginFor<T>) -> DispatchResult {
-			todo!("Cancel the request to exit the candidate pool");
-		}
-
-		#[pallet::call_index(9)]
+		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let candidate = ensure_signed(origin)?;
@@ -347,19 +332,18 @@ pub mod pallet {
 				Error::<T>::CandidateDoesNotExist
 			);
 
-			Self::release_candidate_bonds(&candidate)?;
-
-			Self::deregister_candidate_inner(&candidate);
-
 			let candidate_delegators = CandidateDelegators::<T>::get(&candidate);
-			for delegator in candidate_delegators.into_iter() {
-				Self::remove_delegation(&delegator, &candidate);
+			for delegator in candidate_delegators.into_inner() {
 				Self::release_delegated_amount(&delegator, &candidate)?;
+				Self::remove_candidate_delegation(&delegator, &candidate);
 			}
+			CandidateDelegators::<T>::set(&candidate, BoundedVec::default());
+			Self::release_candidate_bonds(&candidate)?;
+			Self::deregister_candidate_inner(&candidate);
 			Ok(())
 		}
 
-		#[pallet::call_index(10)]
+		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn undelegate_candidate(
 			origin: OriginFor<T>,
@@ -376,7 +360,7 @@ pub mod pallet {
 			};
 
 			if new_delegated_amount.is_zero() {
-				Self::remove_delegation(&delegator, &candidate);
+				Self::remove_candidate_delegation(&delegator, &candidate);
 
 				// Remove delegator from the candidate delegators vector
 				let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
@@ -415,6 +399,13 @@ pub mod pallet {
 			frame_system::Pallet::<T>::block_number()
 		}
 
+		fn remove_candidate_delegation(delegator: &T::AccountId, candidate: &T::AccountId) {
+			DelegationInfos::<T>::remove(&delegator, &candidate);
+
+			let delegate_count = DelegateCountMap::<T>::get(&delegator);
+			DelegateCountMap::<T>::set(&delegator, delegate_count.saturating_sub(1));
+		}
+
 		fn deregister_candidate_inner(candidate: &T::AccountId) {
 			// Remove candidate registration
 			let mut candidate_registrations = CandidateRegistrations::<T>::get();
@@ -422,15 +413,6 @@ pub mod pallet {
 			CandidateRegistrations::<T>::set(candidate_registrations);
 			// CandidateDelegators:<T>::remove(&candidate);
 			CandidateDetailMap::<T>::remove(&candidate);
-		}
-
-		fn remove_delegation(candidate: &T::AccountId, delegator: &T::AccountId) {
-			// Remove the delegation
-			DelegationInfos::<T>::remove(&delegator, &candidate);
-
-			// Decrease the number of delegators that candidate has
-			let delegate_count = DelegateCountMap::<T>::get(&delegator);
-			DelegateCountMap::<T>::set(&delegator, delegate_count.saturating_sub(1));
 		}
 
 		fn register_as_candidate_inner(
@@ -457,10 +439,7 @@ pub mod pallet {
 		}
 
 		fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
-			let (max_delegate_amount, min_delegate_amount) =
-				(MaxTotalDelegateAmount::<T>::get(), MinDelegateAmount::<T>::get());
-
-			ensure!(amount < max_delegate_amount, Error::<T>::OverMaximumTotalDelegateAmount);
+			let min_delegate_amount = MinDelegateAmount::<T>::get();
 			ensure!(amount >= min_delegate_amount, Error::<T>::BelowMinimumDelegateAmount);
 			Ok(())
 		}

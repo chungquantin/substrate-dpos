@@ -106,6 +106,7 @@ impl pallet_dpos::Config for Test {
 	type RuntimeHoldReason = RuntimeHoldReason;
 }
 
+#[derive(Debug)]
 pub struct TestAccount {
 	pub id: AccountId,
 	pub balance: u128,
@@ -129,7 +130,6 @@ pub struct TestExtBuilder {
 	min_candidate_bond: BalanceOf<Test>,
 	max_delegate_count: u32,
 	min_delegate_amount: BalanceOf<Test>,
-	max_total_delegate_amount: BalanceOf<Test>,
 }
 
 impl Default for TestExtBuilder {
@@ -139,7 +139,6 @@ impl Default for TestExtBuilder {
 			min_candidate_bond: 10,
 			max_delegate_count: 4,
 			min_delegate_amount: 10,
-			max_total_delegate_amount: 300,
 		}
 	}
 }
@@ -163,14 +162,6 @@ impl TestExtBuilder {
 	#[allow(dead_code)]
 	pub fn min_delegate_amount(&mut self, min_delegate_amount: BalanceOf<Test>) -> &mut Self {
 		self.min_delegate_amount = min_delegate_amount;
-		self
-	}
-	#[allow(dead_code)]
-	pub fn max_total_delegate_amount(
-		&mut self,
-		max_total_delegate_amount: BalanceOf<Test>,
-	) -> &mut Self {
-		self.max_total_delegate_amount = max_total_delegate_amount;
 		self
 	}
 
@@ -197,7 +188,6 @@ impl TestExtBuilder {
 			min_candidate_bond: self.min_candidate_bond,
 			max_delegate_count: self.max_delegate_count,
 			min_delegate_amount: self.min_delegate_amount,
-			max_total_delegate_amount: self.max_total_delegate_amount,
 		}
 		.assimilate_storage(&mut storage);
 
