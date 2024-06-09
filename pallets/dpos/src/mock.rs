@@ -130,6 +130,8 @@ pub struct TestExtBuilder {
 	min_candidate_bond: BalanceOf<Test>,
 	max_delegate_count: u32,
 	min_delegate_amount: BalanceOf<Test>,
+	max_active_validators: u64,
+	min_active_validators: u64,
 }
 
 impl Default for TestExtBuilder {
@@ -139,6 +141,8 @@ impl Default for TestExtBuilder {
 			min_candidate_bond: 10,
 			max_delegate_count: 4,
 			min_delegate_amount: 10,
+			min_active_validators: 2,
+			max_active_validators: 10,
 		}
 	}
 }
@@ -149,17 +153,29 @@ impl TestExtBuilder {
 		self.epoch_duration = epoch_duration;
 		self
 	}
-	#[allow(dead_code)]
+
 	pub fn min_candidate_bond(&mut self, min_candidate_bond: BalanceOf<Test>) -> &mut Self {
 		self.min_candidate_bond = min_candidate_bond;
 		self
 	}
-	#[allow(dead_code)]
+
 	pub fn max_delegate_count(&mut self, max_delegate_count: u32) -> &mut Self {
 		self.max_delegate_count = max_delegate_count;
 		self
 	}
+
 	#[allow(dead_code)]
+	pub fn max_active_validators(&mut self, max_active_validators: u64) -> &mut Self {
+		self.max_active_validators = max_active_validators;
+		self
+	}
+
+	#[allow(dead_code)]
+	pub fn min_active_validators(&mut self, min_active_validators: u64) -> &mut Self {
+		self.min_active_validators = min_active_validators;
+		self
+	}
+
 	pub fn min_delegate_amount(&mut self, min_delegate_amount: BalanceOf<Test>) -> &mut Self {
 		self.min_delegate_amount = min_delegate_amount;
 		self
@@ -188,6 +204,8 @@ impl TestExtBuilder {
 			min_candidate_bond: self.min_candidate_bond,
 			max_delegate_count: self.max_delegate_count,
 			min_delegate_amount: self.min_delegate_amount,
+			max_active_validators: self.max_active_validators,
+			min_active_validators: self.min_active_validators,
 		}
 		.assimilate_storage(&mut storage);
 

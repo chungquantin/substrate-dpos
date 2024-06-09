@@ -90,6 +90,16 @@ pub mod pallet {
 	pub type MaxDelegateCount<T: Config> =
 		StorageValue<_, u32, ValueQuery, DefaultMaxDelegateCount<T>>;
 
+	/// The maximum number of candidates in the active validator set
+	#[pallet::storage]
+	#[pallet::getter(fn max_active_validators)]
+	pub type MaxActiveValidators<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+	/// The maximum number of candidates in the active validator set
+	#[pallet::storage]
+	#[pallet::getter(fn min_active_validators)]
+	pub type MinActiveValidators<T: Config> = StorageValue<_, u64, ValueQuery>;
+
 	/// The minimum number of delegate amount that the delegator need to provide for one candidate
 	#[pallet::storage]
 	#[pallet::getter(fn min_delegate_amount)]
@@ -163,6 +173,8 @@ pub mod pallet {
 		pub max_delegate_count: u32,
 		pub min_delegate_amount: BalanceOf<T>,
 		pub epoch_duration: BlockNumberFor<T>,
+		pub max_active_validators: u64,
+		pub min_active_validators: u64,
 	}
 
 	#[pallet::genesis_build]
@@ -172,6 +184,8 @@ pub mod pallet {
 			MaxDelegateCount::<T>::put(self.max_delegate_count);
 			MinDelegateAmount::<T>::put(self.min_delegate_amount);
 			EpochDuration::<T>::put(self.epoch_duration);
+			MaxActiveValidators::<T>::put(self.max_active_validators);
+			MinActiveValidators::<T>::put(self.min_active_validators);
 		}
 	}
 
@@ -206,6 +220,7 @@ pub mod pallet {
 			// Epoch has passed...
 			if n % EpochDuration::<T>::get() == BlockNumberFor::<T>::zero() {
 				// CHANGE VALIDATORS LOGIC
+				let _active_validator_set = Self::select_active_validator_set();
 				// You cannot return an error here, so you have to be clever with your code...
 			}
 
@@ -416,6 +431,37 @@ pub mod pallet {
 			new_set: Vec<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			Self::report_new_validators(new_set)
+		}
+	}
+
+	impl<T: Config> Pallet<T> {
+		pub(crate) fn select_active_validator_set() -> Vec<T::AccountId> {
+			let mut sorted_candidates: Vec<(T::AccountId, BalanceOf<T>)> = vec![];
+			let total_in_active_set = MaxActiveValidators::<T>::get();
+			let candidate_registrations = CandidateRegistrations::<T>::get();
+
+			// Get all detailed information of the candidate (top_delegations, bond, etc...)
+			for CandidateRegitrationRequest { request_by, bond } in
+				candidate_registrations.into_inner()
+			{
+				if let Some(candidate_detail) = CandidateDetailMap::<T>::get(&request_by) {
+					sorted_candidates.push((request_by, bond + candidate_detail.total_delegations));
+				}
+			}
+			// Sort the total delegations of candidates to find the best staked validators
+			sorted_candidates.sort_by(|(_, amount_a), (_, amount_b)| amount_a.cmp(&amount_b));
+
+			// Select the top MaxActiveValidators from the candidate pool
+			let active_candidates = sorted_candidates
+				.into_iter()
+				.take(total_in_active_set as usize)
+				.map(|(acc, _)| acc)
+				.collect::<Vec<T::AccountId>>();
+			active_candidates
+		}
+
+		pub fn report_new_validators(new_set: Vec<T::AccountId>) -> DispatchResult {
 			ensure!(
 				(new_set.len() as u32) < T::MaxCandidates::get(),
 				Error::<T>::TooManyValidators
@@ -423,14 +469,8 @@ pub mod pallet {
 			T::ReportNewValidatorSet::report_new_validator_set(new_set);
 			Ok(())
 		}
-	}
 
-	impl<T: Config> Pallet<T> {
-		fn current_block_number() -> BlockNumberFor<T> {
-			frame_system::Pallet::<T>::block_number()
-		}
-
-		fn decrease_candidate_delegations(
+		pub fn decrease_candidate_delegations(
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
@@ -442,7 +482,7 @@ pub mod pallet {
 			Ok(total_delegated_amount)
 		}
 
-		fn increase_candidate_delegations(
+		pub fn increase_candidate_delegations(
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
@@ -454,7 +494,7 @@ pub mod pallet {
 			Ok(total_delegated_amount)
 		}
 
-		fn remove_candidate_delegation(delegator: &T::AccountId, candidate: &T::AccountId) {
+		pub fn remove_candidate_delegation(delegator: &T::AccountId, candidate: &T::AccountId) {
 			DelegationInfos::<T>::remove(&delegator, &candidate);
 
 			let delegate_count = DelegateCountMap::<T>::get(&delegator);
@@ -468,7 +508,7 @@ pub mod pallet {
 			CandidateDelegators::<T>::set(&candidate, candidate_delegators);
 		}
 
-		fn deregister_candidate_inner(candidate: &T::AccountId) {
+		pub fn deregister_candidate_inner(candidate: &T::AccountId) {
 			// Remove candidate registration
 			let mut candidate_registrations = CandidateRegistrations::<T>::get();
 			candidate_registrations.retain(|registration| registration.request_by != *candidate);
@@ -477,7 +517,7 @@ pub mod pallet {
 			CandidateDetailMap::<T>::remove(&candidate);
 		}
 
-		fn register_as_candidate_inner(
+		pub fn register_as_candidate_inner(
 			validator: &T::AccountId,
 			bond: BalanceOf<T>,
 		) -> DispatchResult {
@@ -493,14 +533,14 @@ pub mod pallet {
 				&validator,
 				CandidateDetail {
 					bond,
-					registered_at: Self::current_block_number(),
+					registered_at: frame_system::Pallet::<T>::block_number(),
 					total_delegations: Zero::zero(),
 				},
 			);
 			Ok(())
 		}
 
-		fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
+		pub fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
 			let min_delegate_amount = MinDelegateAmount::<T>::get();
 			ensure!(amount >= min_delegate_amount, Error::<T>::BelowMinimumDelegateAmount);
 			Ok(())
