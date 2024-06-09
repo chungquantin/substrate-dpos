@@ -382,14 +382,21 @@ pub mod pallet {
 			};
 
 			if new_delegated_amount.is_zero() {
+				// If the delegated amount is removed completely, we want to remove
+				// related information to the delegation betwene (delegator, candidate)
 				Self::remove_candidate_delegation(&delegator, &candidate);
 			} else {
+				// Remove the delegated amoutn partially but makes sure it is still above
+				// the minimum delegated amount
 				Self::check_delegated_amount(new_delegated_amount)?;
 
 				delegation_info.update_delegated_amount(new_delegated_amount);
 				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 			}
+			// Releasing the hold amount for the delegation betwene (delegator, candidate)
 			Self::release_delegated_amount(&delegator, &amount)?;
+
+			// Reduce the candidate total_delegation by the undelegated amount
 			Self::decrease_candidate_delegations(&candidate, &amount)?;
 
 			Self::deposit_event(Event::CandidateUndelegated {
