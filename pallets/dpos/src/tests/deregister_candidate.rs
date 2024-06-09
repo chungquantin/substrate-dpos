@@ -2,7 +2,7 @@ use crate::{mock::*, *};
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 
 use tests::ros;
-use types::{CandidateDetail, CandidateRegitrationRequest, DelegationInfo};
+use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_found() {
@@ -37,7 +37,7 @@ fn should_ok_deregister_sucessfully() {
 		}));
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegitrationRequest { bond: hold_amount, request_by: succes_acc },]
+			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: succes_acc },]
 		);
 
 		// Then deregister
@@ -78,7 +78,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_1 }]
+			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 }]
 		);
 
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_2), hold_amount));
@@ -98,8 +98,8 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
 			vec![
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_2 }
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 }
 			]
 		);
 
@@ -120,9 +120,9 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
 			vec![
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_2 },
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_3 }
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_3 }
 			]
 		);
 
@@ -146,8 +146,8 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
 			vec![
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_2 },
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_3 }
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_3 }
 			]
 		);
 
@@ -161,7 +161,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_3), None);
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_2 },]
+			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },]
 		);
 
 		// Deregister candidate 2 from the candidate pool

@@ -27,6 +27,8 @@ parameter_types! {
 	pub const MaxCandidates: u32 = 10;
 	pub const MaxCandidateDelegators: u32 = 5;
 	pub const ExistentialDeposit : u128 = 1;
+	pub const MaxActiveValidators: u64 = 10;
+	pub const MinActiveValidators: u64 = 1;
 }
 
 // Feel free to remove more items from this, as they are the same as
@@ -104,6 +106,8 @@ impl pallet_dpos::Config for Test {
 	type ReportNewValidatorSet = DoNothing;
 	type WeightInfo = ();
 	type RuntimeHoldReason = RuntimeHoldReason;
+	type MaxActiveValidators = MaxActiveValidators;
+	type MinActiveValidators = MinActiveValidators;
 }
 
 #[derive(Debug)]
@@ -164,18 +168,6 @@ impl TestExtBuilder {
 		self
 	}
 
-	#[allow(dead_code)]
-	pub fn max_active_validators(&mut self, max_active_validators: u64) -> &mut Self {
-		self.max_active_validators = max_active_validators;
-		self
-	}
-
-	#[allow(dead_code)]
-	pub fn min_active_validators(&mut self, min_active_validators: u64) -> &mut Self {
-		self.min_active_validators = min_active_validators;
-		self
-	}
-
 	pub fn min_delegate_amount(&mut self, min_delegate_amount: BalanceOf<Test>) -> &mut Self {
 		self.min_delegate_amount = min_delegate_amount;
 		self
@@ -204,8 +196,6 @@ impl TestExtBuilder {
 			min_candidate_bond: self.min_candidate_bond,
 			max_delegate_count: self.max_delegate_count,
 			min_delegate_amount: self.min_delegate_amount,
-			max_active_validators: self.max_active_validators,
-			min_active_validators: self.min_active_validators,
 		}
 		.assimilate_storage(&mut storage);
 

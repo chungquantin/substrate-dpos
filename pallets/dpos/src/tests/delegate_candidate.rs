@@ -1,7 +1,7 @@
 use crate::{mock::*, *};
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use tests::ros;
-use types::{CandidateDetail, CandidateRegitrationRequest, DelegationInfo};
+use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_found() {
@@ -74,7 +74,7 @@ fn should_ok_delegate_candidate_successfully() {
 		);
 		assert_eq!(
 			*CandidateRegistrations::<Test>::get().first().unwrap(),
-			CandidateRegitrationRequest { bond: 40, request_by: candidate.id }
+			CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
 		);
 
 		TestExtBuilder::run_to_block(5);

@@ -3,7 +3,7 @@ use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use sp_runtime::TokenError;
 
 use tests::ros;
-use types::{CandidateDetail, CandidateRegitrationRequest};
+use types::{CandidateDetail, CandidateRegistrationRequest};
 
 #[test]
 fn should_failed_invalid_bond_amount() {
@@ -40,7 +40,7 @@ fn should_ok_register_single_sucessfully() {
 
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegitrationRequest { bond: hold_amount, request_by: succes_acc }]
+			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: succes_acc }]
 		);
 
 		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
@@ -78,7 +78,7 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_1 }]
+			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 }]
 		);
 
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_2), hold_amount));
@@ -98,8 +98,8 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
 			vec![
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_2 }
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 }
 			]
 		);
 
@@ -120,9 +120,9 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 		assert_eq!(
 			CandidateRegistrations::<Test>::get(),
 			vec![
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_2 },
-				CandidateRegitrationRequest { bond: hold_amount, request_by: candidate_3 }
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },
+				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_3 }
 			]
 		);
 

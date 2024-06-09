@@ -1,7 +1,7 @@
 use crate::{mock::*, *};
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use tests::ros;
-use types::{CandidateDetail, CandidateRegitrationRequest, DelegationInfo};
+use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_delegation_found() {
@@ -26,7 +26,7 @@ fn should_ok_delegate_candidate_successfully() {
 		);
 		assert_eq!(
 			*CandidateRegistrations::<Test>::get().first().unwrap(),
-			CandidateRegitrationRequest { bond: 40, request_by: candidate.id }
+			CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
 		);
 
 		TestExtBuilder::run_to_block(5);
@@ -66,7 +66,7 @@ fn should_failed_undelegate_over_amount() {
 		);
 		assert_eq!(
 			*CandidateRegistrations::<Test>::get().first().unwrap(),
-			CandidateRegitrationRequest { bond: 40, request_by: candidate.id }
+			CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
 		);
 
 		TestExtBuilder::run_to_block(5);
@@ -111,7 +111,7 @@ fn should_ok_undelegate_all_amount() {
 		);
 		assert_eq!(
 			*CandidateRegistrations::<Test>::get().first().unwrap(),
-			CandidateRegitrationRequest { bond: 40, request_by: candidate.id }
+			CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
 		);
 
 		TestExtBuilder::run_to_block(5);
@@ -159,7 +159,7 @@ fn should_ok_undelegate_partial_amount() {
 		);
 		assert_eq!(
 			*CandidateRegistrations::<Test>::get().first().unwrap(),
-			CandidateRegitrationRequest { bond: 40, request_by: candidate.id }
+			CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
 		);
 
 		TestExtBuilder::run_to_block(5);
@@ -212,7 +212,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 		);
 		assert_eq!(
 			*CandidateRegistrations::<Test>::get().first().unwrap(),
-			CandidateRegitrationRequest { bond: 40, request_by: candidate.id }
+			CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
 		);
 
 		TestExtBuilder::run_to_block(5);

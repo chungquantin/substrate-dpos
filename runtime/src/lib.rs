@@ -168,6 +168,8 @@ parameter_types! {
 	pub const MaxCandidates: u32 = 10;
 	pub const MaxCandidateDelegators: u32 = 500;
 	pub const MinCandidateBond: u32 = 10;
+	pub const MaxActivevalidators: u32 = 10;
+	pub const MinActiveValidators: u32 = 1;
 }
 
 pub struct BlockAuthor;
@@ -206,6 +208,8 @@ impl pallet_dpos::Config for Runtime {
 	type NativeBalance = Balances;
 	type MaxCandidates = MaxCandidates;
 	type MaxCandidateDelegators = MaxCandidateDelegators;
+	type MaxActiveValidators = MaxActivevalidators;
+	type MinActiveValidators = MinActiveValidators;
 	type ReportNewValidatorSet = StoreNewValidatorSet;
 	type WeightInfo = ();
 	type RuntimeHoldReason = RuntimeHoldReason;

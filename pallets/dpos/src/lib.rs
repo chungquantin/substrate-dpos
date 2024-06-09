@@ -21,12 +21,14 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
-		traits::{fungible, fungible::MutateHold, tokens::Precision, FindAuthor},
+		traits::{
+			fungible, fungible::MutateHold, tokens::Precision, DefensiveSaturating, FindAuthor,
+		},
 		Twox64Concat,
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
 	use sp_runtime::BoundedVec;
-	use sp_std::{prelude::*, vec::Vec};
+	use sp_std::{cmp::Reverse, prelude::*, vec::Vec};
 
 	pub trait ReportNewValidatorSet<AccountId> {
 		fn report_new_validator_set(_new_set: Vec<AccountId>) {}
@@ -55,12 +57,20 @@ pub mod pallet {
 			+ fungible::freeze::Mutate<Self::AccountId>;
 
 		/// The maximum number of authorities that the pallet can hold.
-		#[pallet::storage]
+		#[pallet::constant]
 		type MaxCandidates: Get<u32>;
 
 		/// The maximum number of delegators that the candidate can have
-		#[pallet::storage]
+		#[pallet::constant]
 		type MaxCandidateDelegators: Get<u32>;
+
+		/// The maximum number of candidates in the active validator set
+		#[pallet::constant]
+		type MaxActiveValidators: Get<u32>;
+
+		/// The maximum number of candidates in the active validator set
+		#[pallet::constant]
+		type MinActiveValidators: Get<u32>;
 
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
@@ -90,16 +100,6 @@ pub mod pallet {
 	pub type MaxDelegateCount<T: Config> =
 		StorageValue<_, u32, ValueQuery, DefaultMaxDelegateCount<T>>;
 
-	/// The maximum number of candidates in the active validator set
-	#[pallet::storage]
-	#[pallet::getter(fn max_active_validators)]
-	pub type MaxActiveValidators<T: Config> = StorageValue<_, u64, ValueQuery>;
-
-	/// The maximum number of candidates in the active validator set
-	#[pallet::storage]
-	#[pallet::getter(fn min_active_validators)]
-	pub type MinActiveValidators<T: Config> = StorageValue<_, u64, ValueQuery>;
-
 	/// The minimum number of delegate amount that the delegator need to provide for one candidate
 	#[pallet::storage]
 	#[pallet::getter(fn min_delegate_amount)]
@@ -124,17 +124,23 @@ pub mod pallet {
 	pub type CandidateDetailMap<T: Config> =
 		CountedStorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
 
-	/// Mapping the validator ID with the reigstered candidate detail
+	/// Storing all the registration record of the candidates
 	#[pallet::storage]
 	#[pallet::getter(fn candidate_regristration)]
 	pub type CandidateRegistrations<T: Config> = StorageValue<
 		_,
 		BoundedVec<
-			CandidateRegitrationRequest<<T as frame_system::Config>::AccountId, BalanceOf<T>>,
+			CandidateRegistrationRequest<<T as frame_system::Config>::AccountId, BalanceOf<T>>,
 			<T as Config>::MaxCandidates,
 		>,
 		ValueQuery,
 	>;
+
+	/// Selected validators for the current epoch
+	#[pallet::storage]
+	#[pallet::getter(fn active_validators)]
+	pub type ActiveValidators<T: Config> =
+		StorageValue<_, BoundedVec<T::AccountId, <T as Config>::MaxActiveValidators>, ValueQuery>;
 
 	/// The number of candidates that delegators delegated to
 	#[pallet::storage]
@@ -173,8 +179,6 @@ pub mod pallet {
 		pub max_delegate_count: u32,
 		pub min_delegate_amount: BalanceOf<T>,
 		pub epoch_duration: BlockNumberFor<T>,
-		pub max_active_validators: u64,
-		pub min_active_validators: u64,
 	}
 
 	#[pallet::genesis_build]
@@ -184,8 +188,6 @@ pub mod pallet {
 			MaxDelegateCount::<T>::put(self.max_delegate_count);
 			MinDelegateAmount::<T>::put(self.min_delegate_amount);
 			EpochDuration::<T>::put(self.epoch_duration);
-			MaxActiveValidators::<T>::put(self.max_active_validators);
-			MinActiveValidators::<T>::put(self.min_active_validators);
 		}
 	}
 
@@ -211,6 +213,11 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 			left_delegated_amount: BalanceOf<T>,
 		},
+		CandidateElected {
+			candidate_id: T::AccountId,
+			epoch_index: BlockNumberFor<T>,
+			total_staked: BalanceOf<T>,
+		},
 	}
 
 	#[pallet::hooks]
@@ -218,10 +225,18 @@ pub mod pallet {
 		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			// This is a pretty lightweight check that we do EVERY block, but then tells us when an
 			// Epoch has passed...
+			let epoch_indx = n % EpochDuration::<T>::get();
 			if n % EpochDuration::<T>::get() == BlockNumberFor::<T>::zero() {
 				// CHANGE VALIDATORS LOGIC
-				let _active_validator_set = Self::select_active_validator_set();
+				let active_validator_set = Self::select_active_validator_set();
 				// You cannot return an error here, so you have to be clever with your code...
+				for (active_validator_id, total_staked) in active_validator_set {
+					Self::deposit_event(Event::<T>::CandidateElected {
+						candidate_id: active_validator_id,
+						epoch_index: epoch_indx,
+						total_staked,
+					});
+				}
 			}
 
 			// We return a default weight because we do not expect you to do weights for your
@@ -436,29 +451,40 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		pub(crate) fn select_active_validator_set() -> Vec<T::AccountId> {
-			let mut sorted_candidates: Vec<(T::AccountId, BalanceOf<T>)> = vec![];
-			let total_in_active_set = MaxActiveValidators::<T>::get();
-			let candidate_registrations = CandidateRegistrations::<T>::get();
+		pub(crate) fn select_active_validator_set() -> ActiveValidatorSet<T> {
+			let total_in_active_set = T::MaxActiveValidators::get() as usize;
+			let candidate_registrations = CandidateRegistrations::<T>::get().into_inner();
 
-			// Get all detailed information of the candidate (top_delegations, bond, etc...)
-			for CandidateRegitrationRequest { request_by, bond } in
-				candidate_registrations.into_inner()
-			{
-				if let Some(candidate_detail) = CandidateDetailMap::<T>::get(&request_by) {
-					sorted_candidates.push((request_by, bond + candidate_detail.total_delegations));
-				}
+			if candidate_registrations.len() < total_in_active_set {
+				// If the number of candidates does not reached the threshold, return all
+				return Self::get_candidate_delegations(candidate_registrations);
 			}
-			// Sort the total delegations of candidates to find the best staked validators
-			sorted_candidates.sort_by(|(_, amount_a), (_, amount_b)| amount_a.cmp(&amount_b));
+			// Collect candidates with their total stake (bond + total delegations)
+			let mut sorted_candidates: Vec<(T::AccountId, BalanceOf<T>)> =
+				Self::get_candidate_delegations(candidate_registrations);
 
-			// Select the top MaxActiveValidators from the candidate pool
-			let active_candidates = sorted_candidates
+			// Sort candidates by their total stake in descending order
+			sorted_candidates.sort_by_key(|&(_, total_stake)| Reverse(total_stake));
+
+			// Select the top candidates based on the maximum active validators allowed
+			sorted_candidates.into_iter().take(total_in_active_set).collect()
+		}
+
+		pub fn get_candidate_delegations(
+			candidate_registrations: Vec<
+				CandidateRegistrationRequest<<T as frame_system::Config>::AccountId, BalanceOf<T>>,
+			>,
+		) -> ActiveValidatorSet<T> {
+			candidate_registrations
 				.into_iter()
-				.take(total_in_active_set as usize)
-				.map(|(acc, _)| acc)
-				.collect::<Vec<T::AccountId>>();
-			active_candidates
+				.filter_map(|CandidateRegistrationRequest { request_by, bond: _ }| {
+					CandidateDetailMap::<T>::get(&request_by).map(
+						|CandidateDetail { bond, total_delegations, registered_at: _ }| {
+							(request_by, total_delegations.defensive_saturating_add(bond))
+						},
+					)
+				})
+				.collect::<ActiveValidatorSet<T>>()
 		}
 
 		pub fn report_new_validators(new_set: Vec<T::AccountId>) -> DispatchResult {
@@ -524,7 +550,7 @@ pub mod pallet {
 			// Update the registration list of candidates
 			let mut candidate_registrations = CandidateRegistrations::<T>::get();
 			candidate_registrations
-				.try_push(CandidateRegitrationRequest { bond, request_by: validator.clone() })
+				.try_push(CandidateRegistrationRequest { bond, request_by: validator.clone() })
 				.map_err(|_| Error::<T>::TooManyValidators)?;
 			CandidateRegistrations::<T>::set(candidate_registrations);
 
