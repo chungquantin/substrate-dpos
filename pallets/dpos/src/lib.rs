@@ -75,6 +75,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type MinActiveValidators: Get<u32>;
 
+		type ForceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
 		type ReportNewValidatorSet: ReportNewValidatorSet<Self::AccountId>;
@@ -480,7 +481,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			new_set: Vec<T::AccountId>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::ForceOrigin::ensure_origin(origin)?;
 			Self::report_new_validators(new_set)
 		}
 	}
