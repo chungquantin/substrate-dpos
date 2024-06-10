@@ -141,15 +141,21 @@ pub struct TestExtBuilder {
 	min_candidate_bond: BalanceOf<Test>,
 	min_delegate_amount: BalanceOf<Test>,
 	gensis_candidates: CandidatePool<Test>,
+	delay_deregister_candidate_duration: BlockNumberFor<Test>,
+	delay_reward_payout_sent: BlockNumberFor<Test>,
+	delay_undelegate_candidate: BlockNumberFor<Test>,
 }
 
 impl Default for TestExtBuilder {
 	fn default() -> Self {
 		Self {
-			epoch_duration: 20,
+			epoch_duration: TEST_BLOCKS_PER_EPOCH,
 			min_candidate_bond: 10,
 			min_delegate_amount: 10,
 			gensis_candidates: DEFAULT_ACTIVE_SET.to_vec(),
+			delay_deregister_candidate_duration: TEST_BLOCKS_PER_EPOCH,
+			delay_reward_payout_sent: TEST_BLOCKS_PER_EPOCH,
+			delay_undelegate_candidate: TEST_BLOCKS_PER_EPOCH,
 		}
 	}
 }
@@ -174,6 +180,27 @@ impl TestExtBuilder {
 
 	pub fn min_delegate_amount(&mut self, min_delegate_amount: BalanceOf<Test>) -> &mut Self {
 		self.min_delegate_amount = min_delegate_amount;
+		self
+	}
+
+	#[allow(dead_code)]
+	pub fn delay_deregister_candidate_duration(
+		&mut self,
+		duration: BlockNumberFor<Test>,
+	) -> &mut Self {
+		self.delay_deregister_candidate_duration = duration;
+		self
+	}
+
+	#[allow(dead_code)]
+	pub fn delay_reward_payout_sent(&mut self, duration: BlockNumberFor<Test>) -> &mut Self {
+		self.delay_reward_payout_sent = duration;
+		self
+	}
+
+	#[allow(dead_code)]
+	pub fn delay_undelegate_candidate(&mut self, duration: BlockNumberFor<Test>) -> &mut Self {
+		self.delay_reward_payout_sent = duration;
 		self
 	}
 
@@ -215,6 +242,9 @@ impl TestExtBuilder {
 			min_candidate_bond: self.min_candidate_bond,
 			min_delegate_amount: self.min_delegate_amount,
 			genesis_candidates: self.gensis_candidates.clone(),
+			delay_deregister_candidate_duration: self.delay_deregister_candidate_duration,
+			delay_reward_payout_sent: self.delay_reward_payout_sent,
+			delay_undelegate_candidate: self.delay_undelegate_candidate,
 		}
 		.assimilate_storage(&mut storage);
 

@@ -13,6 +13,7 @@ impl TestAccount {
 	}
 }
 
+pub const TEST_BLOCKS_PER_EPOCH: u64 = 20;
 pub const ACCOUNT_1: TestAccount = TestAccount { id: 1, balance: 10 };
 pub const ACCOUNT_2: TestAccount = TestAccount { id: 2, balance: 20 };
 pub const ACCOUNT_3: TestAccount = TestAccount { id: 3, balance: 300 };
