@@ -1,6 +1,6 @@
 use crate::{mock::*, *};
 use constants::*;
-use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
+use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 use tests::ros;
 use types::{CandidateDetail, DelegationInfo};
 
@@ -8,7 +8,7 @@ use types::{CandidateDetail, DelegationInfo};
 fn should_failed_no_candidate_delegation_found() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
-		assert_err!(
+		assert_noop!(
 			Dpos::undelegate_candidate(ros(ACCOUNT_3.id), ACCOUNT_1.id, 100),
 			Error::<Test>::DelegationDoesNotExist
 		);
@@ -83,7 +83,7 @@ fn should_failed_undelegate_over_amount() {
 			assert_eq!(Balances::free_balance(ACCOUNT_4.id), ACCOUNT_4.balance - 200);
 			assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200);
 
-			assert_err!(
+			assert_noop!(
 				Dpos::undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 300),
 				Error::<Test>::InsufficientDelegatedAmount
 			);

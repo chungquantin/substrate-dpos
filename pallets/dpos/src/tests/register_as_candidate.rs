@@ -1,6 +1,6 @@
 use crate::{mock::*, *};
 use constants::*;
-use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
+use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 use sp_runtime::TokenError;
 
 use tests::ros;
@@ -11,11 +11,11 @@ fn should_failed_invalid_bond_amount() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		// Attemp to register as candidate without enough fund in the account
-		assert_err!(
+		assert_noop!(
 			Dpos::register_as_candidate(ros(ACCOUNT_1.id), 500),
 			TokenError::FundsUnavailable
 		);
-		assert_err!(
+		assert_noop!(
 			Dpos::register_as_candidate(ros(ACCOUNT_1.id), 5),
 			Error::<Test>::BelowMinimumCandidateBond
 		);
@@ -123,6 +123,6 @@ fn should_failed_duplicate_candidate() {
 	let ext = TestExtBuilder::default();
 	ext.build().execute_with(|| {
 		assert_ok!(Dpos::register_as_candidate(ros(2), 15));
-		assert_err!(Dpos::register_as_candidate(ros(2), 15), Error::<Test>::CandidateAlreadyExist)
+		assert_noop!(Dpos::register_as_candidate(ros(2), 15), Error::<Test>::CandidateAlreadyExist);
 	});
 }
