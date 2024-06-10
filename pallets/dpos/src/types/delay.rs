@@ -9,7 +9,6 @@ use sp_core::RuntimeDebug;
 pub enum DelayActionType {
 	CandidateLeaved,
 	CandidateUndelegated,
-	EpochRewardPayoutSent,
 }
 
 #[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen, PartialEq, Eq)]

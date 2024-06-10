@@ -1,6 +1,6 @@
 use crate::{mock::*, *};
 use constants::*;
-use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
+use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 use tests::ros;
 use types::{CandidateDetail, DelegationInfo};
 
@@ -8,7 +8,7 @@ use types::{CandidateDetail, DelegationInfo};
 fn should_failed_no_candidate_found() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
-		assert_err!(
+		assert_noop!(
 			Dpos::delegate_candidate(ros(ACCOUNT_3.id), ACCOUNT_1.id, 100),
 			Error::<Test>::CandidateDoesNotExist
 		);
@@ -26,7 +26,7 @@ fn should_failed_over_range_delegate_amount() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 
-			assert_err!(
+			assert_noop!(
 				Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 100),
 				Error::<Test>::BelowMinimumDelegateAmount
 			);
@@ -55,7 +55,7 @@ fn should_fail_delegate_too_many_candidates() {
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_3.id, 200));
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_4.id, 200));
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_5.id, 200));
-			assert_err!(
+			assert_noop!(
 				Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_6.id, 100),
 				Error::<Test>::TooManyCandidateDelegations
 			);

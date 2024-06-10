@@ -128,12 +128,6 @@ pub mod pallet {
 	#[pallet::getter(fn delay_undelegate_candidate)]
 	pub type DelayUndelegateCandidate<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
-	// TODO: Migrate to claiming process
-	/// Number of blocks required for the reward_payout_sent to work
-	#[pallet::storage]
-	#[pallet::getter(fn delay_reward_payout_sent)]
-	pub type DelayRewardPayoutSent<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
 	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
 	#[pallet::getter(fn candidates)]
@@ -210,7 +204,6 @@ pub mod pallet {
 		pub epoch_duration: BlockNumberFor<T>,
 		pub delay_deregister_candidate_duration: BlockNumberFor<T>,
 		pub delay_undelegate_candidate: BlockNumberFor<T>,
-		pub delay_reward_payout_sent: BlockNumberFor<T>,
 	}
 
 	#[pallet::genesis_build]
@@ -236,7 +229,6 @@ pub mod pallet {
 
 			DelayDeregisterCandidateDuration::<T>::put(self.delay_deregister_candidate_duration);
 			DelayUndelegateCandidate::<T>::put(self.delay_deregister_candidate_duration);
-			DelayRewardPayoutSent::<T>::put(self.delay_deregister_candidate_duration);
 		}
 	}
 
@@ -475,33 +467,58 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(20)]
+		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn delay_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let candidate = ensure_signed(origin)?;
-
 			ensure!(
 				CandidateDetailMap::<T>::contains_key(&candidate),
 				Error::<T>::CandidateDoesNotExist
 			);
-
 			Self::create_delay_action_request(candidate, None, DelayActionType::CandidateLeaved)?;
 			Ok(())
 		}
 
-		#[pallet::call_index(23)]
+		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn execute_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
+			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
+			// time
 			Self::execute_delay_action_inner(executor, DelayActionType::CandidateLeaved, 0)?;
 			Ok(())
 		}
 
-		#[pallet::call_index(24)]
+		#[pallet::call_index(7)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn cancel_deregister_candidate_request(origin: OriginFor<T>) -> DispatchResult {
+			let executor = ensure_signed(origin)?;
+			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
+			// time
+			Self::cancel_action_request_inner(executor, DelayActionType::CandidateLeaved, 0)?;
+			Ok(())
+		}
+
+		#[pallet::call_index(8)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn execute_undelegate_candidate(origin: OriginFor<T>, indx: u32) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
 			Self::execute_delay_action_inner(
+				executor,
+				DelayActionType::CandidateUndelegated,
+				indx,
+			)?;
+			Ok(())
+		}
+
+		#[pallet::call_index(9)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn cancel_undelegate_candidate_request(
+			origin: OriginFor<T>,
+			indx: u32,
+		) -> DispatchResult {
+			let executor = ensure_signed(origin)?;
+			Self::cancel_action_request_inner(
 				executor,
 				DelayActionType::CandidateUndelegated,
 				indx,
@@ -607,8 +624,23 @@ pub mod pallet {
 			match action_type {
 				DelayActionType::CandidateLeaved => DelayDeregisterCandidateDuration::<T>::get(),
 				DelayActionType::CandidateUndelegated => DelayUndelegateCandidate::<T>::get(),
-				DelayActionType::EpochRewardPayoutSent => DelayRewardPayoutSent::<T>::get(),
 			}
+		}
+
+		fn cancel_action_request_inner(
+			request_by: T::AccountId,
+			action_type: DelayActionType,
+			indx: u32,
+		) -> DispatchResult {
+			let mut delay_requests = DelayActionRequests::<T>::get(&request_by, &action_type);
+			match delay_requests.get(indx as usize) {
+				Some(_) => {
+					delay_requests.remove(indx as usize);
+					DelayActionRequests::<T>::set(&request_by, &action_type, delay_requests);
+				},
+				None => return Err(Error::<T>::NoDelayActionRequestFound.into()),
+			}
+			Ok(())
 		}
 
 		fn execute_delay_action_inner(
@@ -630,9 +662,6 @@ pub mod pallet {
 							Self::deregister_candidate_inner(request_by.clone())?;
 						},
 						DelayActionType::CandidateUndelegated => {
-							unimplemented!();
-						},
-						DelayActionType::EpochRewardPayoutSent => {
 							unimplemented!();
 						},
 					}

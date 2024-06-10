@@ -195,12 +195,6 @@ impl TestExtBuilder {
 	}
 
 	#[allow(dead_code)]
-	pub fn delay_reward_payout_sent(&mut self, duration: BlockNumberFor<Test>) -> &mut Self {
-		self.delay_reward_payout_sent = duration;
-		self
-	}
-
-	#[allow(dead_code)]
 	pub fn delay_undelegate_candidate(&mut self, duration: BlockNumberFor<Test>) -> &mut Self {
 		self.delay_reward_payout_sent = duration;
 		self
@@ -245,7 +239,6 @@ impl TestExtBuilder {
 			min_delegate_amount: self.min_delegate_amount,
 			genesis_candidates: self.gensis_candidates.clone(),
 			delay_deregister_candidate_duration: self.delay_deregister_candidate_duration,
-			delay_reward_payout_sent: self.delay_reward_payout_sent,
 			delay_undelegate_candidate: self.delay_undelegate_candidate,
 		}
 		.assimilate_storage(&mut storage);

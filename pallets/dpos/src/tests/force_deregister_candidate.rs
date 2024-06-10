@@ -1,6 +1,6 @@
 use crate::{mock::*, *};
 use constants::*;
-use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
+use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 
 use tests::ros;
 use types::{CandidateDetail, DelegationInfo};
@@ -9,7 +9,7 @@ use types::{CandidateDetail, DelegationInfo};
 fn should_failed_no_candidate_found() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
-		assert_err!(
+		assert_noop!(
 			Dpos::force_deregister_candidate(RuntimeOrigin::root(), ACCOUNT_1.id),
 			Error::<Test>::CandidateDoesNotExist
 		);
