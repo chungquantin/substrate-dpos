@@ -25,14 +25,14 @@ pub mod pallet {
 		pallet_prelude::*,
 		sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
 		traits::{
-			fungible::{self, MutateHold},
+			fungible::{self, Mutate, MutateHold},
 			tokens::Precision,
 			DefensiveSaturating, FindAuthor,
 		},
 		Twox64Concat,
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
-	use sp_runtime::{traits::One, BoundedVec, Saturating};
+	use sp_runtime::{traits::One, BoundedVec, Percent, Saturating};
 	use sp_std::{cmp::Reverse, collections::btree_set::BTreeSet, prelude::*, vec::Vec};
 
 	pub trait ReportNewValidatorSet<AccountId> {
@@ -138,6 +138,16 @@ pub mod pallet {
 	#[pallet::getter(fn epoch_info)]
 	pub type CurrentEpochInfo<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
+	/// Percentage of commission that the delegator receives for their delegations
+	#[pallet::storage]
+	#[pallet::getter(fn delegator_commission)]
+	pub type DelegatorCommission<T: Config> = StorageValue<_, u8, ValueQuery>;
+
+	/// Percentage of commission that the active validator receives for their delegations
+	#[pallet::storage]
+	#[pallet::getter(fn author_comission)]
+	pub type AuthorCommission<T: Config> = StorageValue<_, u8, ValueQuery>;
+
 	/// Selected validators for the current epoch
 	#[pallet::storage]
 	#[pallet::getter(fn active_validators)]
@@ -201,6 +211,8 @@ pub mod pallet {
 		pub genesis_candidates: CandidatePool<T>,
 		pub min_candidate_bond: BalanceOf<T>,
 		pub min_delegate_amount: BalanceOf<T>,
+		pub validator_commission: u8,
+		pub delegator_commission: u8,
 		pub epoch_duration: BlockNumberFor<T>,
 		pub delay_deregister_candidate_duration: BlockNumberFor<T>,
 		pub delay_undelegate_candidate: BlockNumberFor<T>,
@@ -212,6 +224,16 @@ pub mod pallet {
 			assert!(
 				T::MaxActiveValidators::get() >= One::one(),
 				"Need at least one active validator for the network to function"
+			);
+
+			assert!(
+				self.validator_commission > 0 && self.validator_commission <= 100,
+				"Validator commission must be in percentage"
+			);
+
+			assert!(
+				self.delegator_commission > 0 && self.delegator_commission <= 100,
+				"Delegator commission must be in percentage"
 			);
 
 			let mut visited: BTreeSet<T::AccountId> = BTreeSet::default();
@@ -274,9 +296,9 @@ pub mod pallet {
 			// This is a pretty lightweight check that we do EVERY block, but then tells us when an
 			// Epoch has passed...
 			let epoch_indx = n % EpochDuration::<T>::get();
+			let active_validator_set = Self::select_active_validator_set();
 			if n % EpochDuration::<T>::get() == BlockNumberFor::<T>::zero() {
 				// CHANGE VALIDATORS LOGIC
-				let active_validator_set = Self::select_active_validator_set();
 				// You cannot return an error here, so you have to be clever with your code...
 				for (active_validator_id, total_staked) in active_validator_set.iter() {
 					Self::deposit_event(Event::<T>::CandidateElected {
@@ -285,13 +307,25 @@ pub mod pallet {
 						total_staked: *total_staked,
 					});
 				}
-
-				CurrentActiveValidators::<T>::put(
-					BoundedVec::try_from(active_validator_set)
-						.expect("Exceed limit number of the validators in the active set"),
-				);
 			}
 
+			if let Some(current_block_author) = Self::find_author() {
+				let maybe_active_validator = active_validator_set
+					.to_vec()
+					.into_iter()
+					.find(|(validator, _)| validator == &current_block_author);
+
+				if let Some((active_validator, total_staked)) = maybe_active_validator {
+					let reward = Percent::from_percent(AuthorCommission::<T>::get())
+						.saturating_reciprocal_mul(total_staked);
+					let _ = T::NativeBalance::mint_into(&active_validator, reward);
+				}
+			}
+
+			CurrentActiveValidators::<T>::put(
+				BoundedVec::try_from(active_validator_set)
+					.expect("Exceed limit number of the validators in the active set"),
+			);
 			// We return a default weight because we do not expect you to do weights for your
 			// project... Except for extra credit...
 			return Weight::default();
@@ -494,7 +528,8 @@ pub mod pallet {
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn execute_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
-			// Default index of the deregister_candidate is 0 because we only allow 1 request at a time
+			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
+			// time
 			Self::execute_delay_action_inner(executor, DelayActionType::CandidateLeaved, 0)?;
 			Ok(())
 		}
@@ -503,7 +538,8 @@ pub mod pallet {
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn cancel_deregister_candidate_request(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
-			// Default index of the deregister_candidate is 0 because we only allow 1 request at a time
+			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
+			// time
 			Self::cancel_action_request_inner(executor, DelayActionType::CandidateLeaved, 0)?;
 			Ok(())
 		}

@@ -420,8 +420,8 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_3.id,
 				amount: delegated_amount_3,
-				total_delegated_amount: delegated_amount_1
-					+ delegated_amount_2 + delegated_amount_3,
+				total_delegated_amount: delegated_amount_1 +
+					delegated_amount_2 + delegated_amount_3,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 3);
@@ -452,18 +452,18 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_1.id,
 				amount: delegated_amount_1,
-				total_delegated_amount: delegated_amount_1
-					+ delegated_amount_2 + delegated_amount_3
-					+ delegated_amount_1,
+				total_delegated_amount: delegated_amount_1 +
+					delegated_amount_2 + delegated_amount_3 +
+					delegated_amount_1,
 			}));
 
 			assert_eq!(
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail {
 					bond: 40,
-					total_delegations: delegated_amount_3
-						+ delegated_amount_1 + delegated_amount_2
-						+ delegated_amount_1,
+					total_delegations: delegated_amount_3 +
+						delegated_amount_1 + delegated_amount_2 +
+						delegated_amount_1,
 					registered_at: 1
 				})
 			);

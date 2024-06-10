@@ -34,6 +34,7 @@ parameter_types! {
 	pub static MaxActiveValidators: u32 = 10;
 	pub static MinActiveValidators: u32 = 1;
 	pub static MaxDelegateCount : u32 = 5;
+	pub static Author: AccountId = 7;
 }
 
 pub const REGISTRATION_HOLD_AMOUNT: u128 = 200;
@@ -41,19 +42,19 @@ pub const REGISTRATION_HOLD_AMOUNT: u128 = 200;
 lazy_static! {
 	pub static ref DEFAULT_ACTIVE_SET: CandidatePool<Test> = vec![
 		(CANDIDATE_1.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_2.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_3.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_4.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_5.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_6.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_7.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_8.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_9.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_10.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_11.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_12.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_13.id, REGISTRATION_HOLD_AMOUNT),
-		(CANDIDATE_14.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_4.id, REGISTRATION_HOLD_AMOUNT * 3),
+		(CANDIDATE_11.id, REGISTRATION_HOLD_AMOUNT * 6),
+		(CANDIDATE_12.id, REGISTRATION_HOLD_AMOUNT * 6),
+		(CANDIDATE_5.id, REGISTRATION_HOLD_AMOUNT * 3),
+		(CANDIDATE_6.id, REGISTRATION_HOLD_AMOUNT * 4),
+		(CANDIDATE_7.id, REGISTRATION_HOLD_AMOUNT * 4),
+		(CANDIDATE_13.id, REGISTRATION_HOLD_AMOUNT * 7),
+		(CANDIDATE_2.id, REGISTRATION_HOLD_AMOUNT * 2),
+		(CANDIDATE_3.id, REGISTRATION_HOLD_AMOUNT * 2),
+		(CANDIDATE_14.id, REGISTRATION_HOLD_AMOUNT * 7),
+		(CANDIDATE_8.id, REGISTRATION_HOLD_AMOUNT * 5),
+		(CANDIDATE_9.id, REGISTRATION_HOLD_AMOUNT * 5),
+		(CANDIDATE_10.id, REGISTRATION_HOLD_AMOUNT * 6),
 	];
 }
 
@@ -104,13 +105,13 @@ impl pallet_balances::Config for Test {
 	type MaxFreezes = ConstU32<10>;
 }
 
-pub struct AlwaysSeven;
-impl FindAuthor<AccountId> for AlwaysSeven {
+pub struct DynamicAuthor;
+impl FindAuthor<AccountId> for DynamicAuthor {
 	fn find_author<'a, I>(_: I) -> Option<AccountId>
 	where
 		I: 'a + IntoIterator<Item = ([u8; 4], &'a [u8])>,
 	{
-		Some(7)
+		Some(Author::get())
 	}
 }
 
@@ -120,7 +121,7 @@ impl ReportNewValidatorSet<AccountId> for DoNothing {
 }
 
 impl pallet_authorship::Config for Test {
-	type FindAuthor = AlwaysSeven;
+	type FindAuthor = DynamicAuthor;
 	type EventHandler = ();
 }
 
@@ -146,6 +147,8 @@ pub struct TestExtBuilder {
 	delay_deregister_candidate_duration: BlockNumberFor<Test>,
 	delay_reward_payout_sent: BlockNumberFor<Test>,
 	delay_undelegate_candidate: BlockNumberFor<Test>,
+	validator_commission: u8,
+	delegator_commission: u8,
 }
 
 impl Default for TestExtBuilder {
@@ -158,6 +161,8 @@ impl Default for TestExtBuilder {
 			delay_deregister_candidate_duration: TEST_BLOCKS_PER_EPOCH,
 			delay_reward_payout_sent: TEST_BLOCKS_PER_EPOCH,
 			delay_undelegate_candidate: TEST_BLOCKS_PER_EPOCH,
+			validator_commission: 3,
+			delegator_commission: 1,
 		}
 	}
 }
@@ -182,6 +187,18 @@ impl TestExtBuilder {
 
 	pub fn min_delegate_amount(&mut self, min_delegate_amount: BalanceOf<Test>) -> &mut Self {
 		self.min_delegate_amount = min_delegate_amount;
+		self
+	}
+
+	#[allow(dead_code)]
+	pub fn validator_commission(&mut self, validator_commission: u8) -> &mut Self {
+		self.validator_commission = validator_commission;
+		self
+	}
+
+	#[allow(dead_code)]
+	pub fn delegator_commission(&mut self, delegator_commission: u8) -> &mut Self {
+		self.delegator_commission = delegator_commission;
 		self
 	}
 
@@ -238,6 +255,8 @@ impl TestExtBuilder {
 			min_candidate_bond: self.min_candidate_bond,
 			min_delegate_amount: self.min_delegate_amount,
 			genesis_candidates: self.gensis_candidates.clone(),
+			delegator_commission: self.delegator_commission,
+			validator_commission: self.validator_commission,
 			delay_deregister_candidate_duration: self.delay_deregister_candidate_duration,
 			delay_undelegate_candidate: self.delay_undelegate_candidate,
 		}

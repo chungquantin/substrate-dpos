@@ -17,3 +17,5 @@ mod force_deregister_candidate;
 mod force_undelegate_candidate;
 #[cfg(test)]
 mod register_as_candidate;
+#[cfg(test)]
+mod validator_election;
