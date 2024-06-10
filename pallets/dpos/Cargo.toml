@@ -31,6 +31,7 @@ sp-io = { version = "36.0.0", default-features = false }
 sp-runtime = { version = "37.0.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
 log = "0.4.21"
+lazy_static = "1.4.0"
 
 [dev-dependencies]
 pallet-balances = { version = "35.0.0" }

@@ -1,9 +1,15 @@
-use crate::{self as pallet_dpos, BalanceOf, ReportNewValidatorSet};
+use crate::{
+	self as pallet_dpos,
+	constants::{AccountId, Balance, *},
+	types::CandidatePool,
+	BalanceOf, ReportNewValidatorSet,
+};
 use frame_support::{
 	derive_impl, parameter_types,
 	traits::{ConstU16, ConstU32, ConstU64, FindAuthor, Hooks},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use lazy_static::lazy_static;
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
@@ -11,8 +17,6 @@ use sp_runtime::{
 };
 
 type Block = frame_system::mocking::MockBlock<Test>;
-type Balance = u128;
-type AccountId = u64;
 
 // Configure a mock runtime to test the pallet. We use the simpler syntax here.
 frame_support::construct_runtime! {
@@ -24,11 +28,30 @@ frame_support::construct_runtime! {
 }
 
 parameter_types! {
-	pub const MaxCandidates: u32 = 10;
+	pub const MaxCandidates: u32 = 20;
 	pub const MaxCandidateDelegators: u32 = 5;
 	pub const ExistentialDeposit : u128 = 1;
-	pub const MaxActiveValidators: u64 = 10;
-	pub const MinActiveValidators: u64 = 1;
+	pub const MaxActiveValidators: u32 = 10;
+	pub const MinActiveValidators: u32 = 1;
+}
+
+lazy_static! {
+	pub static ref DEFAULT_ACTIVE_SET: CandidatePool<Test> = vec![
+		(CANDIDATE_1.id, 100),
+		(CANDIDATE_2.id, 100),
+		(CANDIDATE_3.id, 100),
+		(CANDIDATE_4.id, 100),
+		(CANDIDATE_5.id, 100),
+		(CANDIDATE_6.id, 100),
+		(CANDIDATE_7.id, 100),
+		(CANDIDATE_8.id, 100),
+		(CANDIDATE_9.id, 100),
+		(CANDIDATE_10.id, 100),
+		(CANDIDATE_11.id, 100),
+		(CANDIDATE_12.id, 100),
+		(CANDIDATE_13.id, 100),
+		(CANDIDATE_14.id, 100),
+	];
 }
 
 // Feel free to remove more items from this, as they are the same as
@@ -110,43 +133,22 @@ impl pallet_dpos::Config for Test {
 	type MinActiveValidators = MinActiveValidators;
 }
 
-#[derive(Debug)]
-pub struct TestAccount {
-	pub id: AccountId,
-	pub balance: u128,
-}
-
-impl TestAccount {
-	pub fn to_tuple(self) -> (AccountId, u128) {
-		(self.id, self.balance)
-	}
-}
-
-pub const ACCOUNT_1: TestAccount = TestAccount { id: 1, balance: 10 };
-pub const ACCOUNT_2: TestAccount = TestAccount { id: 2, balance: 20 };
-pub const ACCOUNT_3: TestAccount = TestAccount { id: 3, balance: 300 };
-pub const ACCOUNT_4: TestAccount = TestAccount { id: 4, balance: 400 };
-pub const ACCOUNT_5: TestAccount = TestAccount { id: 5, balance: 500 };
-pub const ACCOUNT_6: TestAccount = TestAccount { id: 6, balance: 10_000 };
-
 pub struct TestExtBuilder {
 	epoch_duration: BlockNumberFor<Test>,
 	min_candidate_bond: BalanceOf<Test>,
 	max_delegate_count: u32,
 	min_delegate_amount: BalanceOf<Test>,
-	max_active_validators: u64,
-	min_active_validators: u64,
+	gensis_candidates: CandidatePool<Test>,
 }
 
 impl Default for TestExtBuilder {
 	fn default() -> Self {
 		Self {
-			epoch_duration: 10,
+			epoch_duration: 20,
 			min_candidate_bond: 10,
 			max_delegate_count: 4,
 			min_delegate_amount: 10,
-			min_active_validators: 2,
-			max_active_validators: 10,
+			gensis_candidates: DEFAULT_ACTIVE_SET.to_vec(),
 		}
 	}
 }
@@ -160,6 +162,12 @@ impl TestExtBuilder {
 
 	pub fn min_candidate_bond(&mut self, min_candidate_bond: BalanceOf<Test>) -> &mut Self {
 		self.min_candidate_bond = min_candidate_bond;
+		self
+	}
+
+	#[allow(dead_code)]
+	pub fn genesis_candidates(&mut self, candidates: CandidatePool<Test>) -> &mut Self {
+		self.gensis_candidates = candidates;
 		self
 	}
 
@@ -185,6 +193,21 @@ impl TestExtBuilder {
 				ACCOUNT_4.to_tuple(),
 				ACCOUNT_5.to_tuple(),
 				ACCOUNT_6.to_tuple(),
+				// Initializing the balances for active candidates
+				CANDIDATE_1.to_tuple(),
+				CANDIDATE_2.to_tuple(),
+				CANDIDATE_3.to_tuple(),
+				CANDIDATE_4.to_tuple(),
+				CANDIDATE_5.to_tuple(),
+				CANDIDATE_6.to_tuple(),
+				CANDIDATE_7.to_tuple(),
+				CANDIDATE_8.to_tuple(),
+				CANDIDATE_9.to_tuple(),
+				CANDIDATE_10.to_tuple(),
+				CANDIDATE_11.to_tuple(),
+				CANDIDATE_12.to_tuple(),
+				CANDIDATE_13.to_tuple(),
+				CANDIDATE_14.to_tuple(),
 				// This allows us to have a total_payout different from 0.
 				(999, 1_000_000_000_000),
 			],
@@ -196,6 +219,7 @@ impl TestExtBuilder {
 			min_candidate_bond: self.min_candidate_bond,
 			max_delegate_count: self.max_delegate_count,
 			min_delegate_amount: self.min_delegate_amount,
+			genesis_candidates: self.gensis_candidates.clone(),
 		}
 		.assimilate_storage(&mut storage);
 

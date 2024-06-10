@@ -11,6 +11,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod constants;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
@@ -27,8 +30,8 @@ pub mod pallet {
 		Twox64Concat,
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
-	use sp_runtime::BoundedVec;
-	use sp_std::{cmp::Reverse, prelude::*, vec::Vec};
+	use sp_runtime::{traits::One, BoundedVec};
+	use sp_std::{cmp::Reverse, collections::btree_set::BTreeSet, prelude::*, vec::Vec};
 
 	pub trait ReportNewValidatorSet<AccountId> {
 		fn report_new_validator_set(_new_set: Vec<AccountId>) {}
@@ -136,11 +139,18 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn epoch_info)]
+	pub type CurrentEpochInfo<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
+
 	/// Selected validators for the current epoch
 	#[pallet::storage]
 	#[pallet::getter(fn active_validators)]
-	pub type ActiveValidators<T: Config> =
-		StorageValue<_, BoundedVec<T::AccountId, <T as Config>::MaxActiveValidators>, ValueQuery>;
+	pub type CurrentActiveValidators<T: Config> = StorageValue<
+		_,
+		BoundedVec<(T::AccountId, BalanceOf<T>), <T as Config>::MaxActiveValidators>,
+		ValueQuery,
+	>;
 
 	/// The number of candidates that delegators delegated to
 	#[pallet::storage]
@@ -175,6 +185,7 @@ pub mod pallet {
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
+		pub genesis_candidates: CandidatePool<T>,
 		pub min_candidate_bond: BalanceOf<T>,
 		pub max_delegate_count: u32,
 		pub min_delegate_amount: BalanceOf<T>,
@@ -184,6 +195,20 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
+			assert!(
+				T::MaxActiveValidators::get() >= One::one(),
+				"Need at least one active validator for the network to function"
+			);
+
+			let mut visited: BTreeSet<T::AccountId> = BTreeSet::default();
+			for (candidate, bond) in self.genesis_candidates.iter() {
+				assert!(*bond >= self.min_candidate_bond, "Invalid bond for genesis candidate");
+				assert!(visited.insert(candidate.clone()), "Candidate registration duplicates");
+
+				Pallet::<T>::register_as_candidate_inner(&candidate, *bond)
+					.expect("Register candidate error");
+			}
+
 			MinCandidateBond::<T>::put(self.min_candidate_bond);
 			MaxDelegateCount::<T>::put(self.max_delegate_count);
 			MinDelegateAmount::<T>::put(self.min_delegate_amount);
@@ -218,6 +243,13 @@ pub mod pallet {
 			epoch_index: BlockNumberFor<T>,
 			total_staked: BalanceOf<T>,
 		},
+		NextEpochMoved {
+			last_epoch: BlockNumberFor<T>,
+			next_epoch: BlockNumberFor<T>,
+			at_block: BlockNumberFor<T>,
+			total_delegations: BalanceOf<T>,
+			total_validators: u64,
+		},
 	}
 
 	#[pallet::hooks]
@@ -230,13 +262,18 @@ pub mod pallet {
 				// CHANGE VALIDATORS LOGIC
 				let active_validator_set = Self::select_active_validator_set();
 				// You cannot return an error here, so you have to be clever with your code...
-				for (active_validator_id, total_staked) in active_validator_set {
+				for (active_validator_id, total_staked) in active_validator_set.iter() {
 					Self::deposit_event(Event::<T>::CandidateElected {
-						candidate_id: active_validator_id,
+						candidate_id: active_validator_id.clone(),
 						epoch_index: epoch_indx,
-						total_staked,
+						total_staked: *total_staked,
 					});
 				}
+
+				CurrentActiveValidators::<T>::put(
+					BoundedVec::try_from(active_validator_set)
+						.expect("Exceed limit number of the validators in the active set"),
+				);
 			}
 
 			// We return a default weight because we do not expect you to do weights for your
@@ -348,8 +385,6 @@ pub mod pallet {
 				!CandidateDetailMap::<T>::contains_key(&validator),
 				Error::<T>::CandidateAlreadyExist
 			);
-
-			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
 
 			Self::register_as_candidate_inner(&validator, bond)?;
 
@@ -547,6 +582,9 @@ pub mod pallet {
 			validator: &T::AccountId,
 			bond: BalanceOf<T>,
 		) -> DispatchResult {
+			// Hold the amount for candidate bond registration
+			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
+
 			// Update the registration list of candidates
 			let mut candidate_registrations = CandidateRegistrations::<T>::get();
 			candidate_registrations

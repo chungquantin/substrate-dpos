@@ -1,4 +1,5 @@
 use crate::{mock::*, *};
+use constants::*;
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use sp_runtime::TokenError;
 
@@ -7,8 +8,8 @@ use types::{CandidateDetail, CandidateRegistrationRequest};
 
 #[test]
 fn should_failed_invalid_bond_amount() {
-	let ext = TestExtBuilder::default();
-	ext.build().execute_with(|| {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		// Attemp to register as candidate without enough fund in the account
 		assert_err!(
 			Dpos::register_as_candidate(ros(ACCOUNT_1.id), 500),
@@ -23,8 +24,8 @@ fn should_failed_invalid_bond_amount() {
 
 #[test]
 fn should_ok_register_single_sucessfully() {
-	let ext = TestExtBuilder::default();
-	ext.build().execute_with(|| {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
 		let hold_amount = 15;
 		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
@@ -55,8 +56,8 @@ fn should_ok_register_single_sucessfully() {
 
 #[test]
 fn should_ok_register_multiple_candidates_sucessfully() {
-	let ext = TestExtBuilder::default();
-	ext.build().execute_with(|| {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		let (candidate_1, balance_1) = ACCOUNT_2.to_tuple();
 		let (candidate_2, balance_2) = ACCOUNT_3.to_tuple();
 		let (candidate_3, balance_3) = ACCOUNT_4.to_tuple();

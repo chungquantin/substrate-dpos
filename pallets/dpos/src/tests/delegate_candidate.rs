@@ -1,12 +1,13 @@
 use crate::{mock::*, *};
+use constants::*;
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use tests::ros;
 use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_found() {
-	let ext = TestExtBuilder::default();
-	ext.build().execute_with(|| {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		assert_err!(
 			Dpos::delegate_candidate(ros(ACCOUNT_3.id), ACCOUNT_1.id, 100),
 			Error::<Test>::CandidateDoesNotExist
@@ -18,22 +19,27 @@ fn should_failed_no_candidate_found() {
 fn should_failed_over_range_delegate_amount() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
-	ext.min_candidate_bond(20).min_delegate_amount(101).build().execute_with(|| {
-		assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(20)
+		.min_delegate_amount(101)
+		.build()
+		.execute_with(|| {
+			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 
-		assert_err!(
-			Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 100),
-			Error::<Test>::BelowMinimumDelegateAmount
-		);
+			assert_err!(
+				Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 100),
+				Error::<Test>::BelowMinimumDelegateAmount
+			);
 
-		assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 300));
-	});
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 300));
+		});
 }
 
 #[test]
 fn should_fail_delegate_too_many_candidates() {
 	let mut ext = TestExtBuilder::default();
-	ext.min_candidate_bond(5)
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(5)
 		.min_delegate_amount(90)
 		.max_delegate_count(1)
 		.build()
@@ -51,7 +57,8 @@ fn should_fail_delegate_too_many_candidates() {
 #[test]
 fn should_ok_get_invalid_candidate() {
 	let mut ext = TestExtBuilder::default();
-	ext.min_candidate_bond(5)
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(5)
 		.min_delegate_amount(101)
 		.max_delegate_count(1)
 		.build()
@@ -66,47 +73,52 @@ fn should_ok_get_invalid_candidate() {
 fn should_ok_delegate_candidate_successfully() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
-	ext.min_candidate_bond(20).min_delegate_amount(101).build().execute_with(|| {
-		assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
-		assert_eq!(
-			CandidateDetailMap::<Test>::get(candidate.id),
-			Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
-		);
-		assert_eq!(
-			*CandidateRegistrations::<Test>::get().first().unwrap(),
-			CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
-		);
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(20)
+		.min_delegate_amount(101)
+		.build()
+		.execute_with(|| {
+			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+			assert_eq!(
+				CandidateDetailMap::<Test>::get(candidate.id),
+				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+			);
+			assert_eq!(
+				*CandidateRegistrations::<Test>::get().first().unwrap(),
+				CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
+			);
 
-		TestExtBuilder::run_to_block(5);
+			TestExtBuilder::run_to_block(5);
 
-		assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
-		assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
-		assert_eq!(
-			DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
-			Some(DelegationInfo { amount: 200, last_modified_at: 5 })
-		);
-		assert_eq!(Balances::free_balance(ACCOUNT_4.id), ACCOUNT_4.balance - 200);
-		assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200);
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
+			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
+			assert_eq!(
+				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
+				Some(DelegationInfo { amount: 200, last_modified_at: 5 })
+			);
+			assert_eq!(Balances::free_balance(ACCOUNT_4.id), ACCOUNT_4.balance - 200);
+			assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200);
 
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
-			candidate_id: candidate.id,
-			delegated_by: ACCOUNT_4.id,
-			amount: 200,
-			total_delegated_amount: 200,
-		}));
+			System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
+				candidate_id: candidate.id,
+				delegated_by: ACCOUNT_4.id,
+				amount: 200,
+				total_delegated_amount: 200,
+			}));
 
-		assert_eq!(
-			CandidateDetailMap::<Test>::get(candidate.id),
-			Some(CandidateDetail { bond: 40, total_delegations: 200, registered_at: 1 })
-		);
-	});
+			assert_eq!(
+				CandidateDetailMap::<Test>::get(candidate.id),
+				Some(CandidateDetail { bond: 40, total_delegations: 200, registered_at: 1 })
+			);
+		});
 }
 
 #[test]
 fn should_ok_one_delegator_one_candidate_successfully() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
-	ext.min_candidate_bond(20)
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(20)
 		.min_delegate_amount(101)
 		.max_delegate_count(3)
 		.build()
@@ -186,7 +198,8 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 fn should_ok_one_delegator_multiple_candidates_successfully() {
 	use frame_support::traits::fungible::InspectHold;
 	let mut ext = TestExtBuilder::default();
-	ext.min_candidate_bond(20)
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(20)
 		.min_delegate_amount(50)
 		.max_delegate_count(3)
 		.build()
@@ -314,7 +327,8 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 #[test]
 fn should_ok_multiple_delegators_one_candidate_successfully() {
 	let mut ext = TestExtBuilder::default();
-	ext.min_candidate_bond(20)
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(20)
 		.min_delegate_amount(50)
 		.max_delegate_count(3)
 		.build()

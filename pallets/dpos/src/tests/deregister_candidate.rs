@@ -1,4 +1,5 @@
 use crate::{mock::*, *};
+use constants::*;
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 
 use tests::ros;
@@ -6,8 +7,8 @@ use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_found() {
-	let ext = TestExtBuilder::default();
-	ext.build().execute_with(|| {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		assert_err!(
 			Dpos::deregister_candidate(ros(ACCOUNT_1.id)),
 			Error::<Test>::CandidateDoesNotExist
@@ -17,8 +18,8 @@ fn should_failed_no_candidate_found() {
 
 #[test]
 fn should_ok_deregister_sucessfully() {
-	let ext = TestExtBuilder::default();
-	ext.build().execute_with(|| {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
 		let hold_amount = 15;
 
@@ -55,8 +56,8 @@ fn should_ok_deregister_sucessfully() {
 
 #[test]
 fn should_ok_deregister_multiple_candidates_sucessfully() {
-	let ext = TestExtBuilder::default();
-	ext.build().execute_with(|| {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		let (candidate_1, balance_1) = ACCOUNT_2.to_tuple();
 		let (candidate_2, balance_2) = ACCOUNT_3.to_tuple();
 		let (candidate_3, balance_3) = ACCOUNT_4.to_tuple();
@@ -179,7 +180,8 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 #[test]
 fn should_ok_deregister_with_delegations_sucessfully() {
 	let mut ext = TestExtBuilder::default();
-	ext.min_candidate_bond(20)
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(20)
 		.min_delegate_amount(50)
 		.max_delegate_count(3)
 		.build()
