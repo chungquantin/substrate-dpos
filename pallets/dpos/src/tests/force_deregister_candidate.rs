@@ -335,3 +335,58 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 			assert_eq!(Balances::total_balance_on_hold(&candidate.id), 0);
 		});
 }
+
+#[test]
+fn should_ok_deregister_all_candidates_sucessfully() {
+	let mut ext = TestExtBuilder::default();
+	ext.min_delegate_amount(100).build().execute_with(|| {
+		MaxDelegateCount::set(100);
+
+		TestExtBuilder::run_to_block(1010);
+
+		let delegated_amount = 101;
+		for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), candidate, delegated_amount));
+			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
+			assert_eq!(
+				DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
+				Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+			);
+			assert_eq!(
+				Balances::free_balance(ACCOUNT_6.id),
+				ACCOUNT_6.balance - delegated_amount * (indx + 1) as u128
+			);
+			assert_eq!(
+				Balances::total_balance_on_hold(&ACCOUNT_6.id),
+				delegated_amount * (indx + 1) as u128
+			);
+		}
+
+		for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+			assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), candidate));
+
+			System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
+				candidate_id: candidate,
+			}));
+			assert_eq!(CandidateDetailMap::<Test>::get(candidate), None);
+			assert_eq!(
+				CandidateRegistrations::<Test>::get().len(),
+				DEFAULT_ACTIVE_SET.len() - (indx + 1)
+			);
+			assert_eq!(CandidateDelegators::<Test>::get(candidate), vec![]);
+			assert_eq!(DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate), None);
+			assert_eq!(
+				DelegateCountMap::<Test>::get(ACCOUNT_6.id),
+				(DEFAULT_ACTIVE_SET.len() - (indx + 1)) as u32
+			);
+
+			let total_delegated_amount =
+				delegated_amount * ((DEFAULT_ACTIVE_SET.len() - (indx + 1)) as u128);
+			assert_eq!(
+				Balances::free_balance(ACCOUNT_6.id),
+				ACCOUNT_6.balance - total_delegated_amount
+			);
+			assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_6.id), total_delegated_amount);
+		}
+	});
+}

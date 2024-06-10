@@ -342,12 +342,6 @@ pub mod pallet {
 		DelegateAmountReserved,
 	}
 
-	impl<T: Config> DelayExecutor<T> for Pallet<T> {
-		fn execute_reward_payout(_origin: OriginFor<T>) -> DispatchResult {
-			unimplemented!();
-		}
-	}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(1)]
@@ -439,6 +433,12 @@ pub mod pallet {
 			candidate: T::AccountId,
 		) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
+
+			ensure!(
+				CandidateDetailMap::<T>::contains_key(&candidate),
+				Error::<T>::CandidateDoesNotExist
+			);
+
 			Self::deregister_candidate_inner(candidate)?;
 			Ok(())
 		}
@@ -490,30 +490,33 @@ pub mod pallet {
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn delay_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let candidate = ensure_signed(origin)?;
-			Self::create_delay_action_request(
-				candidate,
-				None,
-				DelayActionType::CandidateRegistrationRemoved,
-			)?;
+
+			ensure!(
+				CandidateDetailMap::<T>::contains_key(&candidate),
+				Error::<T>::CandidateDoesNotExist
+			);
+
+			Self::create_delay_action_request(candidate, None, DelayActionType::CandidateLeaved)?;
 			Ok(())
 		}
 
 		#[pallet::call_index(23)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn execute_delay_action(
-			origin: OriginFor<T>,
-			action_type: DelayActionType,
-			indx: u32,
-		) -> DispatchResult {
+		pub fn execute_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
+			Self::execute_delay_action_inner(executor, DelayActionType::CandidateLeaved, 0)?;
+			Ok(())
+		}
 
-			let delay_requests = DelayActionRequests::<T>::get(&executor, &action_type);
-			ensure!(!delay_requests.is_empty(), Error::<T>::NoDelayActionRequestFound);
-
-			match delay_requests.get(indx as usize) {
-				Some(request) => Self::execute_delay_action_inner(executor, action_type, request)?,
-				None => return Err(Error::<T>::NoDelayActionRequestFound.into()),
-			}
+		#[pallet::call_index(24)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn execute_undelegate_candidate(origin: OriginFor<T>, indx: u32) -> DispatchResult {
+			let executor = ensure_signed(origin)?;
+			Self::execute_delay_action_inner(
+				executor,
+				DelayActionType::CandidateUndelegated,
+				indx,
+			)?;
 			Ok(())
 		}
 
@@ -575,7 +578,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub(crate) fn decrease_candidate_delegations(
+		fn decrease_candidate_delegations(
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
@@ -587,7 +590,7 @@ pub mod pallet {
 			Ok(total_delegated_amount)
 		}
 
-		pub(crate) fn increase_candidate_delegations(
+		fn increase_candidate_delegations(
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
@@ -599,7 +602,7 @@ pub mod pallet {
 			Ok(total_delegated_amount)
 		}
 
-		pub(crate) fn remove_candidate_delegation_data(
+		fn remove_candidate_delegation_data(
 			delegator: &T::AccountId,
 			candidate: &T::AccountId,
 		) -> DispatchResult {
@@ -619,7 +622,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub(crate) fn remove_candidate_registration_data(candidate: &T::AccountId) {
+		fn remove_candidate_registration_data(candidate: &T::AccountId) {
 			// Remove candidate registration
 			let mut candidate_registrations = CandidateRegistrations::<T>::get();
 			candidate_registrations.retain(|registration| registration.request_by != *candidate);
@@ -627,41 +630,50 @@ pub mod pallet {
 			CandidateDetailMap::<T>::remove(&candidate);
 		}
 
-		pub(crate) fn get_delay_action_duration(
-			action_type: &DelayActionType,
-		) -> BlockNumberFor<T> {
+		fn get_delay_action_duration(action_type: &DelayActionType) -> BlockNumberFor<T> {
 			match action_type {
-				DelayActionType::CandidateRegistrationRemoved =>
-					DelayDeregisterCandidateDuration::<T>::get(),
+				DelayActionType::CandidateLeaved => DelayDeregisterCandidateDuration::<T>::get(),
 				DelayActionType::CandidateUndelegated => DelayUndelegateCandidate::<T>::get(),
 				DelayActionType::EpochRewardPayoutSent => DelayRewardPayoutSent::<T>::get(),
 			}
 		}
 
-		pub(crate) fn execute_delay_action_inner(
+		fn execute_delay_action_inner(
 			request_by: T::AccountId,
 			action_type: DelayActionType,
-			request: &DelayActionRequest<T>,
+			indx: u32,
 		) -> DispatchResult {
 			let now = frame_system::Pallet::<T>::block_number();
-			// Delay action is due, start executing the action
-			if now.saturating_add(request.created_at) >= request.delay_for {
-				match action_type {
-					DelayActionType::CandidateRegistrationRemoved => {
-						Self::deregister_candidate_inner(request_by)?;
-					},
-					DelayActionType::CandidateUndelegated => {
-						unimplemented!();
-					},
-					DelayActionType::EpochRewardPayoutSent => {
-						unimplemented!();
-					},
-				}
+			let mut delay_requests = DelayActionRequests::<T>::get(&request_by, &action_type);
+			ensure!(!delay_requests.is_empty(), Error::<T>::NoDelayActionRequestFound);
+
+			match delay_requests.get(indx as usize) {
+				Some(request) => {
+					// Delay action is due, start executing the action
+					if now.saturating_add(request.created_at) >= request.delay_for {
+						match action_type {
+							DelayActionType::CandidateLeaved => {
+								Self::deregister_candidate_inner(request_by.clone())?;
+							},
+							DelayActionType::CandidateUndelegated => {
+								unimplemented!();
+							},
+							DelayActionType::EpochRewardPayoutSent => {
+								unimplemented!();
+							},
+						}
+					}
+				},
+				None => return Err(Error::<T>::NoDelayActionRequestFound.into()),
 			}
+
+			delay_requests.remove(indx as usize);
+			DelayActionRequests::<T>::set(&request_by, &action_type, delay_requests);
+
 			Ok(())
 		}
 
-		pub(crate) fn create_delay_action_request(
+		fn create_delay_action_request(
 			request_by: T::AccountId,
 			consumed_amount: Option<BalanceOf<T>>,
 			action_type: DelayActionType,
@@ -679,12 +691,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub(crate) fn deregister_candidate_inner(candidate: T::AccountId) -> DispatchResult {
-			ensure!(
-				CandidateDetailMap::<T>::contains_key(&candidate),
-				Error::<T>::CandidateDoesNotExist
-			);
-
+		fn deregister_candidate_inner(candidate: T::AccountId) -> DispatchResult {
 			let candidate_delegators = CandidateDelegators::<T>::get(&candidate);
 
 			// Processing all the delegators of the candidate
@@ -737,7 +744,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub(crate) fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
+		fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
 			let min_delegate_amount = MinDelegateAmount::<T>::get();
 			ensure!(amount >= min_delegate_amount, Error::<T>::BelowMinimumDelegateAmount);
 			Ok(())
@@ -757,7 +764,7 @@ pub mod pallet {
 		}
 
 		/// Releasing the hold balance amount of delegator
-		pub fn release_delegated_amount(
+		fn release_delegated_amount(
 			delegator: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResult {

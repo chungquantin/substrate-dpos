@@ -28,30 +28,32 @@ frame_support::construct_runtime! {
 }
 
 parameter_types! {
-	pub const MaxCandidates: u32 = 20;
-	pub const MaxCandidateDelegators: u32 = 5;
-	pub const ExistentialDeposit : u128 = 1;
-	pub const MaxActiveValidators: u32 = 10;
-	pub const MinActiveValidators: u32 = 1;
-	pub const MaxDelegateCount : u32 = 5;
+	pub static MaxCandidates: u32 = 20;
+	pub static MaxCandidateDelegators: u32 = 5;
+	pub static ExistentialDeposit : u128 = 1;
+	pub static MaxActiveValidators: u32 = 10;
+	pub static MinActiveValidators: u32 = 1;
+	pub static MaxDelegateCount : u32 = 5;
 }
+
+pub const REGISTRATION_HOLD_AMOUNT: u128 = 100;
 
 lazy_static! {
 	pub static ref DEFAULT_ACTIVE_SET: CandidatePool<Test> = vec![
-		(CANDIDATE_1.id, 100),
-		(CANDIDATE_2.id, 100),
-		(CANDIDATE_3.id, 100),
-		(CANDIDATE_4.id, 100),
-		(CANDIDATE_5.id, 100),
-		(CANDIDATE_6.id, 100),
-		(CANDIDATE_7.id, 100),
-		(CANDIDATE_8.id, 100),
-		(CANDIDATE_9.id, 100),
-		(CANDIDATE_10.id, 100),
-		(CANDIDATE_11.id, 100),
-		(CANDIDATE_12.id, 100),
-		(CANDIDATE_13.id, 100),
-		(CANDIDATE_14.id, 100),
+		(CANDIDATE_1.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_2.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_3.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_4.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_5.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_6.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_7.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_8.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_9.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_10.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_11.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_12.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_13.id, REGISTRATION_HOLD_AMOUNT),
+		(CANDIDATE_14.id, REGISTRATION_HOLD_AMOUNT),
 	];
 }
 
