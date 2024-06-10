@@ -120,6 +120,9 @@ fn should_ok_undelegate_partial_amount() {
 			TestExtBuilder::run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
+
+			TestExtBuilder::run_to_block(10);
+
 			assert_ok!(Dpos::undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 75));
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
