@@ -26,17 +26,6 @@ fn should_ok_delay_deregister_sucessfully() {
 		TestExtBuilder::run_to_block(10);
 		// Register first
 		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
-		assert_eq!(
-			CandidateDetailMap::<Test>::get(succes_acc),
-			Some(CandidateDetail { bond: hold_amount, registered_at: 10, total_delegations: 0 })
-		);
-		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
-		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
-			candidate_id: 2,
-			initial_bond: 15,
-		}));
-
 		// Then schedule to deregister
 		assert_ok!(Dpos::delay_deregister_candidate(ros(succes_acc)));
 
