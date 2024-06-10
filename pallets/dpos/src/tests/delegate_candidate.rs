@@ -2,7 +2,7 @@ use crate::{mock::*, *};
 use constants::*;
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use tests::ros;
-use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
+use types::{CandidateDetail, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_found() {
@@ -89,10 +89,6 @@ fn should_ok_delegate_candidate_successfully() {
 			assert_eq!(
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
-			);
-			assert_eq!(
-				*CandidateRegistrations::<Test>::get().first().unwrap(),
-				CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
 			);
 
 			TestExtBuilder::run_to_block(5);
@@ -306,7 +302,6 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				delegated_amount_1 + delegated_amount_2 + delegated_amount_3
 			);
 
-			assert_eq!(CandidateRegistrations::<Test>::get().len(), 3);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate_1.id).len(), 1);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate_2.id).len(), 1);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate_3.id).len(), 1);

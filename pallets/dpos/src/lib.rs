@@ -138,19 +138,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn candidates)]
 	pub type CandidateDetailMap<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
-
-	/// Storing all the registration record of the candidates
-	#[pallet::storage]
-	#[pallet::getter(fn candidate_regristration)]
-	pub type CandidateRegistrations<T: Config> = StorageValue<
-		_,
-		BoundedVec<
-			CandidateRegistrationRequest<<T as frame_system::Config>::AccountId, BalanceOf<T>>,
-			<T as Config>::MaxCandidates,
-		>,
-		ValueQuery,
-	>;
+		CountedStorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_info)]
@@ -171,7 +159,7 @@ pub mod pallet {
 	pub type DelegateCountMap<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, u32, ValueQuery>;
 
-	/// DelegationInfos[(delegator_id, validator_id, delegated_amount)]
+	/// DelegationInfos[(delegator_id, validator_id, delegation_info)]
 	#[pallet::storage]
 	#[pallet::getter(fn delegation_infos)]
 	pub type DelegationInfos<T: Config> = StorageDoubleMap<
@@ -330,6 +318,7 @@ pub mod pallet {
 		BelowMinimumCandidateBond,
 		InsufficientDelegatedAmount,
 		NoDelayActionRequestFound,
+		ActionIsStillInDelayDuration,
 	}
 
 	/// A reason for the pallet dpos placing a hold on funds.
@@ -534,39 +523,31 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T> {
 		pub(crate) fn select_active_validator_set() -> ActiveValidatorSet<T> {
-			let total_in_active_set = T::MaxActiveValidators::get() as usize;
-			let candidate_registrations = CandidateRegistrations::<T>::get().into_inner();
-
-			if candidate_registrations.len() < total_in_active_set {
+			let total_in_active_set = T::MaxActiveValidators::get();
+			if CandidateDetailMap::<T>::count() < total_in_active_set {
 				// If the number of candidates does not reached the threshold, return all
-				return Self::get_candidate_delegations(candidate_registrations);
+				return Self::get_candidate_delegations();
 			}
 			// Collect candidates with their total stake (bond + total delegations)
 			let mut sorted_candidates: Vec<(T::AccountId, BalanceOf<T>)> =
-				Self::get_candidate_delegations(candidate_registrations);
+				Self::get_candidate_delegations();
 
 			// Sort candidates by their total stake in descending order
 			sorted_candidates.sort_by_key(|&(_, total_stake)| Reverse(total_stake));
 
 			// Select the top candidates based on the maximum active validators allowed
-			sorted_candidates.into_iter().take(total_in_active_set).collect()
+			let usize_total_in_active_set = total_in_active_set as usize;
+			sorted_candidates.into_iter().take(usize_total_in_active_set).collect()
 		}
 
-		pub fn get_candidate_delegations(
-			candidate_registrations: Vec<
-				CandidateRegistrationRequest<<T as frame_system::Config>::AccountId, BalanceOf<T>>,
-			>,
-		) -> ActiveValidatorSet<T> {
-			candidate_registrations
-				.into_iter()
-				.filter_map(|CandidateRegistrationRequest { request_by, bond: _ }| {
-					CandidateDetailMap::<T>::get(&request_by).map(
-						|CandidateDetail { bond, total_delegations, registered_at: _ }| {
-							(request_by, total_delegations.defensive_saturating_add(bond))
-						},
-					)
-				})
-				.collect::<ActiveValidatorSet<T>>()
+		pub fn get_candidate_delegations() -> ActiveValidatorSet<T> {
+			CandidateDetailMap::<T>::iter()
+				.map(
+					|(candidate, CandidateDetail { bond, total_delegations, registered_at: _ })| {
+						(candidate, total_delegations.defensive_saturating_add(bond))
+					},
+				)
+				.collect()
 		}
 
 		pub fn report_new_validators(new_set: Vec<T::AccountId>) -> DispatchResult {
@@ -622,14 +603,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn remove_candidate_registration_data(candidate: &T::AccountId) {
-			// Remove candidate registration
-			let mut candidate_registrations = CandidateRegistrations::<T>::get();
-			candidate_registrations.retain(|registration| registration.request_by != *candidate);
-			CandidateRegistrations::<T>::set(candidate_registrations);
-			CandidateDetailMap::<T>::remove(&candidate);
-		}
-
 		fn get_delay_action_duration(action_type: &DelayActionType) -> BlockNumberFor<T> {
 			match action_type {
 				DelayActionType::CandidateLeaved => DelayDeregisterCandidateDuration::<T>::get(),
@@ -645,30 +618,29 @@ pub mod pallet {
 		) -> DispatchResult {
 			let now = frame_system::Pallet::<T>::block_number();
 			let mut delay_requests = DelayActionRequests::<T>::get(&request_by, &action_type);
-			ensure!(!delay_requests.is_empty(), Error::<T>::NoDelayActionRequestFound);
-
 			match delay_requests.get(indx as usize) {
 				Some(request) => {
 					// Delay action is due, start executing the action
-					if now.saturating_add(request.created_at) >= request.delay_for {
-						match action_type {
-							DelayActionType::CandidateLeaved => {
-								Self::deregister_candidate_inner(request_by.clone())?;
-							},
-							DelayActionType::CandidateUndelegated => {
-								unimplemented!();
-							},
-							DelayActionType::EpochRewardPayoutSent => {
-								unimplemented!();
-							},
-						}
+					ensure!(
+						now.saturating_sub(request.created_at) >= request.delay_for,
+						Error::<T>::ActionIsStillInDelayDuration
+					);
+					match action_type {
+						DelayActionType::CandidateLeaved => {
+							Self::deregister_candidate_inner(request_by.clone())?;
+						},
+						DelayActionType::CandidateUndelegated => {
+							unimplemented!();
+						},
+						DelayActionType::EpochRewardPayoutSent => {
+							unimplemented!();
+						},
 					}
+					delay_requests.remove(indx as usize);
+					DelayActionRequests::<T>::set(&request_by, &action_type, delay_requests);
 				},
 				None => return Err(Error::<T>::NoDelayActionRequestFound.into()),
 			}
-
-			delay_requests.remove(indx as usize);
-			DelayActionRequests::<T>::set(&request_by, &action_type, delay_requests);
 
 			Ok(())
 		}
@@ -711,7 +683,7 @@ pub mod pallet {
 			Self::release_candidate_bonds(&candidate)?;
 
 			// Removing any information related the registration of the candidate in the pool
-			Self::remove_candidate_registration_data(&candidate);
+			CandidateDetailMap::<T>::remove(&candidate);
 
 			Self::deposit_event(Event::CandidateRegistrationRemoved { candidate_id: candidate });
 
@@ -724,13 +696,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			// Hold the amount for candidate bond registration
 			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
-
-			// Update the registration list of candidates
-			let mut candidate_registrations = CandidateRegistrations::<T>::get();
-			candidate_registrations
-				.try_push(CandidateRegistrationRequest { bond, request_by: validator.clone() })
-				.map_err(|_| Error::<T>::TooManyValidators)?;
-			CandidateRegistrations::<T>::set(candidate_registrations);
 
 			// Store the amount held in our local storage.
 			CandidateDetailMap::<T>::insert(

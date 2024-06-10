@@ -3,10 +3,7 @@ use constants::*;
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 
 use tests::ros;
-use types::{
-	CandidateDetail, CandidateRegistrationRequest, DelayActionRequest, DelayActionType,
-	DelegationInfo,
-};
+use types::{CandidateDetail, DelayActionRequest, DelayActionType, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_found() {
@@ -39,10 +36,6 @@ fn should_ok_delay_deregister_sucessfully() {
 			candidate_id: 2,
 			initial_bond: 15,
 		}));
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: succes_acc },]
-		);
 
 		// Then schedule to deregister
 		assert_ok!(Dpos::delay_deregister_candidate(ros(succes_acc)));
@@ -62,10 +55,6 @@ fn should_ok_delay_deregister_sucessfully() {
 				delay_for: Dpos::delay_deregister_candidate_duration()
 			}]
 		);
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: succes_acc }]
-		);
 
 		// We go the few other blocks and try to execute it again
 		TestExtBuilder::run_to_block(TEST_BLOCKS_PER_EPOCH * 2);
@@ -76,7 +65,6 @@ fn should_ok_delay_deregister_sucessfully() {
 			candidate_id: succes_acc,
 		}));
 		assert_eq!(CandidateDetailMap::<Test>::get(succes_acc), None);
-		assert_eq!(CandidateRegistrations::<Test>::get(), vec![]);
 
 		assert_eq!(Balances::free_balance(succes_acc), bond);
 		assert_eq!(Balances::total_balance_on_hold(&succes_acc), 0);
@@ -94,6 +82,16 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 		let delegated_amount = 101;
 		for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
 			assert_ok!(Dpos::delay_deregister_candidate(ros(candidate)));
+
+			assert_eq!(
+				DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
+				vec![DelayActionRequest {
+					amount: None,
+					created_at: 1010,
+					delay_for: Dpos::delay_deregister_candidate_duration()
+				}]
+			);
+
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), candidate, delegated_amount));
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
 			assert_eq!(
@@ -110,7 +108,7 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 			);
 		}
 
-		TestExtBuilder::run_to_block(TEST_BLOCKS_PER_EPOCH * 2);
+		TestExtBuilder::run_to_block(1010 + TEST_BLOCKS_PER_EPOCH * 2);
 
 		for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
 			assert_ok!(Dpos::execute_deregister_candidate(ros(candidate)));
@@ -120,8 +118,8 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 			}));
 			assert_eq!(CandidateDetailMap::<Test>::get(candidate), None);
 			assert_eq!(
-				CandidateRegistrations::<Test>::get().len(),
-				DEFAULT_ACTIVE_SET.len() - (indx + 1)
+				CandidateDetailMap::<Test>::count(),
+				(DEFAULT_ACTIVE_SET.len() - (indx + 1)) as u32
 			);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate), vec![]);
 			assert_eq!(DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate), None);
@@ -139,4 +137,83 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 			assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_6.id), total_delegated_amount);
 		}
 	});
+}
+
+#[test]
+fn should_failed_delay_deregister_candidates_behinds_due_date() {
+	let mut ext = TestExtBuilder::default();
+	ext.delay_deregister_candidate_duration(TEST_BLOCKS_PER_EPOCH)
+		.min_delegate_amount(100)
+		.build()
+		.execute_with(|| {
+			MaxDelegateCount::set(100);
+
+			TestExtBuilder::run_to_block(1010);
+
+			let delegated_amount = 101;
+			for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+				assert_ok!(Dpos::delay_deregister_candidate(ros(candidate)));
+				assert_eq!(
+					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
+					vec![DelayActionRequest {
+						amount: None,
+						created_at: 1010,
+						delay_for: Dpos::delay_deregister_candidate_duration()
+					}]
+				);
+
+				assert_ok!(Dpos::delegate_candidate(
+					ros(ACCOUNT_6.id),
+					candidate,
+					delegated_amount
+				));
+				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
+				assert_eq!(
+					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
+					Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+				);
+				assert_eq!(
+					Balances::free_balance(ACCOUNT_6.id),
+					ACCOUNT_6.balance - delegated_amount * (indx + 1) as u128
+				);
+				assert_eq!(
+					Balances::total_balance_on_hold(&ACCOUNT_6.id),
+					delegated_amount * (indx + 1) as u128
+				);
+			}
+
+			TestExtBuilder::run_to_block(1010 + HALF_EPOCH);
+
+			for (_, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+				assert_err!(
+					Dpos::execute_deregister_candidate(ros(candidate)),
+					Error::<Test>::ActionIsStillInDelayDuration
+				);
+
+				assert_eq!(CandidateDetailMap::<Test>::count(), DEFAULT_ACTIVE_SET.len() as u32);
+				assert_eq!(
+					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
+					vec![DelayActionRequest {
+						amount: None,
+						created_at: 1010,
+						delay_for: Dpos::delay_deregister_candidate_duration()
+					}]
+				);
+				assert_eq!(
+					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
+					Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+				);
+				assert_eq!(
+					DelegateCountMap::<Test>::get(ACCOUNT_6.id),
+					DEFAULT_ACTIVE_SET.len() as u32
+				);
+
+				let total_delegated_amount = delegated_amount * (DEFAULT_ACTIVE_SET.len() as u128);
+				assert_eq!(
+					Balances::free_balance(ACCOUNT_6.id),
+					ACCOUNT_6.balance - total_delegated_amount
+				);
+				assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_6.id), total_delegated_amount);
+			}
+		});
 }

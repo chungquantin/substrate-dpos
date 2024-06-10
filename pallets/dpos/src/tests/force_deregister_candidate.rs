@@ -3,7 +3,7 @@ use constants::*;
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 
 use tests::ros;
-use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
+use types::{CandidateDetail, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_found() {
@@ -36,10 +36,7 @@ fn should_ok_deregister_sucessfully() {
 			candidate_id: 2,
 			initial_bond: 15,
 		}));
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: succes_acc },]
-		);
+		assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
 		// Then deregister
 		assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), succes_acc));
@@ -47,7 +44,7 @@ fn should_ok_deregister_sucessfully() {
 			candidate_id: succes_acc,
 		}));
 		assert_eq!(CandidateDetailMap::<Test>::get(succes_acc), None);
-		assert_eq!(CandidateRegistrations::<Test>::get(), vec![]);
+		assert_eq!(CandidateDetailMap::<Test>::count(), 0);
 
 		assert_eq!(Balances::free_balance(succes_acc), bond);
 		assert_eq!(Balances::total_balance_on_hold(&succes_acc), 0);
@@ -76,12 +73,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 			candidate_id: candidate_1,
 			initial_bond: hold_amount,
 		}));
-
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 }]
-		);
-
+		assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_2), hold_amount));
 		assert_eq!(
 			CandidateDetailMap::<Test>::get(candidate_2),
@@ -95,15 +87,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 			candidate_id: candidate_2,
 			initial_bond: hold_amount,
 		}));
-
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 }
-			]
-		);
-
+		assert_eq!(CandidateDetailMap::<Test>::count(), 2);
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_3), hold_amount));
 		assert_eq!(
 			CandidateDetailMap::<Test>::get(candidate_3),
@@ -118,15 +102,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 			initial_bond: hold_amount,
 		}));
 
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_3 }
-			]
-		);
-
+		assert_eq!(CandidateDetailMap::<Test>::count(), 3);
 		assert_eq!(Balances::free_balance(candidate_1), balance_1 - hold_amount);
 		assert_eq!(Balances::total_balance_on_hold(&candidate_1), hold_amount);
 
@@ -144,13 +120,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_1), None);
 		assert_ne!(CandidateDetailMap::<Test>::get(candidate_2), None);
 		assert_ne!(CandidateDetailMap::<Test>::get(candidate_3), None);
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_3 }
-			]
-		);
+		assert_eq!(CandidateDetailMap::<Test>::count(), 2);
 
 		// Deregister candidate 3 from the candidate pool
 		assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), candidate_3));
@@ -160,10 +130,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_1), None);
 		assert_ne!(CandidateDetailMap::<Test>::get(candidate_2), None);
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_3), None);
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },]
-		);
+		assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
 		// Deregister candidate 2 from the candidate pool
 		assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), candidate_2));
@@ -173,7 +140,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_1), None);
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_2), None);
 		assert_eq!(CandidateDetailMap::<Test>::get(candidate_3), None);
-		assert_eq!(CandidateRegistrations::<Test>::get(), vec![]);
+		assert_eq!(CandidateDetailMap::<Test>::count(), 0);
 	});
 }
 
@@ -326,7 +293,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				candidate_id: candidate.id,
 			}));
 			assert_eq!(CandidateDetailMap::<Test>::get(candidate.id), None);
-			assert_eq!(CandidateRegistrations::<Test>::get(), vec![]);
+			assert_eq!(CandidateDetailMap::<Test>::count(), 0);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![]);
 			assert_eq!(DelegationInfos::<Test>::get(delegator_1.id, candidate.id), None);
 			assert_eq!(DelegateCountMap::<Test>::get(delegator_1.id), 0);
@@ -370,8 +337,8 @@ fn should_ok_deregister_all_candidates_sucessfully() {
 			}));
 			assert_eq!(CandidateDetailMap::<Test>::get(candidate), None);
 			assert_eq!(
-				CandidateRegistrations::<Test>::get().len(),
-				DEFAULT_ACTIVE_SET.len() - (indx + 1)
+				CandidateDetailMap::<Test>::count(),
+				(DEFAULT_ACTIVE_SET.len() - (indx + 1)) as u32
 			);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate), vec![]);
 			assert_eq!(DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate), None);

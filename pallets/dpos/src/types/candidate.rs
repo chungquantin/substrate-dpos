@@ -34,12 +34,6 @@ impl<T: Config> CandidateDetail<T> {
 	}
 }
 
-#[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen, PartialEq, Eq)]
-pub struct CandidateRegistrationRequest<AccountId, Balance> {
-	pub request_by: AccountId,
-	pub bond: Balance,
-}
-
 #[allow(type_alias_bounds)]
 pub type ActiveValidatorSet<T: Config> = sp_std::vec::Vec<(T::AccountId, BalanceOf<T>)>;
 

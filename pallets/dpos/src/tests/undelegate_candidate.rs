@@ -2,7 +2,7 @@ use crate::{mock::*, *};
 use constants::*;
 use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use tests::ros;
-use types::{CandidateDetail, CandidateRegistrationRequest, DelegationInfo};
+use types::{CandidateDetail, DelegationInfo};
 
 #[test]
 fn should_failed_no_candidate_delegation_found() {
@@ -29,10 +29,7 @@ fn should_ok_delegate_candidate_successfully() {
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
-			assert_eq!(
-				*CandidateRegistrations::<Test>::get().first().unwrap(),
-				CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
-			);
+			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
 			TestExtBuilder::run_to_block(5);
 
@@ -73,10 +70,7 @@ fn should_failed_undelegate_over_amount() {
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
-			assert_eq!(
-				*CandidateRegistrations::<Test>::get().first().unwrap(),
-				CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
-			);
+			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
 			TestExtBuilder::run_to_block(5);
 
@@ -122,10 +116,7 @@ fn should_ok_undelegate_all_amount() {
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
-			assert_eq!(
-				*CandidateRegistrations::<Test>::get().first().unwrap(),
-				CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
-			);
+			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
 			TestExtBuilder::run_to_block(5);
 
@@ -174,10 +165,7 @@ fn should_ok_undelegate_partial_amount() {
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
-			assert_eq!(
-				*CandidateRegistrations::<Test>::get().first().unwrap(),
-				CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
-			);
+			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
 			TestExtBuilder::run_to_block(5);
 
@@ -231,10 +219,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				CandidateDetailMap::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
-			assert_eq!(
-				*CandidateRegistrations::<Test>::get().first().unwrap(),
-				CandidateRegistrationRequest { bond: 40, request_by: candidate.id }
-			);
+			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
 			TestExtBuilder::run_to_block(5);
 

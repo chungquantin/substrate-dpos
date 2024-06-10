@@ -4,7 +4,7 @@ use frame_support::{assert_err, assert_ok, traits::fungible::InspectHold};
 use sp_runtime::TokenError;
 
 use tests::ros;
-use types::{CandidateDetail, CandidateRegistrationRequest};
+use types::CandidateDetail;
 
 #[test]
 fn should_failed_invalid_bond_amount() {
@@ -39,11 +39,6 @@ fn should_ok_register_single_sucessfully() {
 			})
 		);
 
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: succes_acc }]
-		);
-
 		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
 		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
 		// Assert that the correct event was deposited
@@ -76,12 +71,7 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			candidate_id: candidate_1,
 			initial_bond: hold_amount,
 		}));
-
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 }]
-		);
-
+		assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_2), hold_amount));
 		assert_eq!(
 			CandidateDetailMap::<Test>::get(candidate_2),
@@ -96,13 +86,7 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			initial_bond: hold_amount,
 		}));
 
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 }
-			]
-		);
+		assert_eq!(CandidateDetailMap::<Test>::count(), 2);
 
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_3), hold_amount));
 		assert_eq!(
@@ -118,14 +102,7 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			initial_bond: hold_amount,
 		}));
 
-		assert_eq!(
-			CandidateRegistrations::<Test>::get(),
-			vec![
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_1 },
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_2 },
-				CandidateRegistrationRequest { bond: hold_amount, request_by: candidate_3 }
-			]
-		);
+		assert_eq!(CandidateDetailMap::<Test>::count(), 3);
 
 		assert_eq!(Balances::free_balance(candidate_1), balance_1 - hold_amount);
 		assert_eq!(Balances::total_balance_on_hold(&candidate_1), hold_amount);
