@@ -426,44 +426,20 @@ pub mod pallet {
 
 		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn undelegate_candidate(
+		pub fn force_undelegate_candidate(
 			origin: OriginFor<T>,
+			delegator: T::AccountId,
 			candidate: T::AccountId,
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
-			let delegator = ensure_signed(origin)?;
-			let mut delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
-				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+			T::ForceOrigin::ensure_origin(origin)?;
 
-			let new_delegated_amount = match delegation_info.amount.checked_sub(&amount) {
-				Some(value) => value,
-				None => return Err(Error::<T>::InsufficientDelegatedAmount.into()),
-			};
+			ensure!(
+				CandidateDetailMap::<T>::contains_key(&candidate),
+				Error::<T>::CandidateDoesNotExist
+			);
 
-			if new_delegated_amount.is_zero() {
-				// If the delegated amount is removed completely, we want to remove
-				// related information to the delegation betwene (delegator, candidate)
-				Self::remove_candidate_delegation_data(&delegator, &candidate)?;
-			} else {
-				// Remove the delegated amoutn partially but makes sure it is still above
-				// the minimum delegated amount
-				Self::check_delegated_amount(new_delegated_amount)?;
-
-				delegation_info.update_delegated_amount(new_delegated_amount);
-				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
-			}
-			// Releasing the hold amount for the delegation betwene (delegator, candidate)
-			Self::release_delegated_amount(&delegator, &amount)?;
-
-			// Reduce the candidate total_delegation by the undelegated amount
-			Self::decrease_candidate_delegations(&candidate, &amount)?;
-
-			Self::deposit_event(Event::CandidateUndelegated {
-				candidate_id: candidate,
-				delegator,
-				amount,
-				left_delegated_amount: new_delegated_amount,
-			});
+			Self::undelegate_candidate_inner(delegator, candidate, amount)?;
 			Ok(())
 		}
 
@@ -715,6 +691,46 @@ pub mod pallet {
 			CandidateDetailMap::<T>::remove(&candidate);
 
 			Self::deposit_event(Event::CandidateRegistrationRemoved { candidate_id: candidate });
+
+			Ok(())
+		}
+
+		fn undelegate_candidate_inner(
+			delegator: T::AccountId,
+			candidate: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let mut delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
+				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+			let new_delegated_amount = match delegation_info.amount.checked_sub(&amount) {
+				Some(value) => value,
+				None => return Err(Error::<T>::InsufficientDelegatedAmount.into()),
+			};
+
+			if new_delegated_amount.is_zero() {
+				// If the delegated amount is removed completely, we want to remove
+				// related information to the delegation betwene (delegator, candidate)
+				Self::remove_candidate_delegation_data(&delegator, &candidate)?;
+			} else {
+				// Remove the delegated amoutn partially but makes sure it is still above
+				// the minimum delegated amount
+				Self::check_delegated_amount(new_delegated_amount)?;
+
+				delegation_info.update_delegated_amount(new_delegated_amount);
+				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
+			}
+			// Releasing the hold amount for the delegation betwene (delegator, candidate)
+			Self::release_delegated_amount(&delegator, &amount)?;
+
+			// Reduce the candidate total_delegation by the undelegated amount
+			Self::decrease_candidate_delegations(&candidate, &amount)?;
+
+			Self::deposit_event(Event::CandidateUndelegated {
+				candidate_id: candidate,
+				delegator,
+				amount,
+				left_delegated_amount: new_delegated_amount,
+			});
 
 			Ok(())
 		}

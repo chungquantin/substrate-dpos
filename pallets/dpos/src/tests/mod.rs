@@ -12,6 +12,6 @@ mod delegate_candidate;
 #[cfg(test)]
 mod force_deregister_candidate;
 #[cfg(test)]
-mod register_as_candidate;
+mod force_undelegate_candidate;
 #[cfg(test)]
-mod undelegate_candidate;
+mod register_as_candidate;

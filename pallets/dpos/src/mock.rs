@@ -36,7 +36,7 @@ parameter_types! {
 	pub static MaxDelegateCount : u32 = 5;
 }
 
-pub const REGISTRATION_HOLD_AMOUNT: u128 = 100;
+pub const REGISTRATION_HOLD_AMOUNT: u128 = 200;
 
 lazy_static! {
 	pub static ref DEFAULT_ACTIVE_SET: CandidatePool<Test> = vec![

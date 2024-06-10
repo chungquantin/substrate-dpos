@@ -5,11 +5,32 @@ use tests::ros;
 use types::{CandidateDetail, DelegationInfo};
 
 #[test]
-fn should_failed_no_candidate_delegation_found() {
+fn should_failed_no_candidate_found() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		assert_noop!(
-			Dpos::undelegate_candidate(ros(ACCOUNT_3.id), ACCOUNT_1.id, 100),
+			Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_3.id,
+				ACCOUNT_1.id,
+				100
+			),
+			Error::<Test>::CandidateDoesNotExist
+		);
+	});
+}
+
+#[test]
+fn should_failed_no_candidate_delegation_found() {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![DEFAULT_ACTIVE_SET[0]]).build().execute_with(|| {
+		assert_noop!(
+			Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_3.id,
+				DEFAULT_ACTIVE_SET[0].0,
+				100
+			),
 			Error::<Test>::DelegationDoesNotExist
 		);
 	});
@@ -28,7 +49,12 @@ fn should_ok_deregister_funds_no_available() {
 		assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), candidate, delegated_amount));
 
 		assert_noop!(
-			Dpos::undelegate_candidate(ros(ACCOUNT_6.id), candidate, delegated_amount - 1),
+			Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_6.id,
+				candidate,
+				delegated_amount - 1
+			),
 			Error::<Test>::BelowMinimumDelegateAmount
 		);
 	});
@@ -54,7 +80,12 @@ fn should_failed_undelegate_over_amount() {
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 			assert_noop!(
-				Dpos::undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 300),
+				Dpos::force_undelegate_candidate(
+					RuntimeOrigin::root(),
+					ACCOUNT_4.id,
+					candidate.id,
+					300
+				),
 				Error::<Test>::InsufficientDelegatedAmount
 			);
 
@@ -90,7 +121,12 @@ fn should_ok_undelegate_all_amount() {
 			TestExtBuilder::run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
-			assert_ok!(Dpos::undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
+			assert_ok!(Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_4.id,
+				candidate.id,
+				200
+			));
 			assert_eq!(DelegationInfos::<Test>::get(ACCOUNT_1.id, candidate.id), None);
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_1.id), 0);
 			assert_eq!(CandidateDelegators::<Test>::get(ACCOUNT_1.id), vec![]);
@@ -123,7 +159,12 @@ fn should_ok_undelegate_partial_amount() {
 
 			TestExtBuilder::run_to_block(10);
 
-			assert_ok!(Dpos::undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 75));
+			assert_ok!(Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_4.id,
+				candidate.id,
+				75
+			));
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
 				Some(DelegationInfo { amount: 125, last_modified_at: 10 })
@@ -156,7 +197,12 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 			TestExtBuilder::run_to_block(10);
 
 			// Undelegate ACCOUNT_4
-			assert_ok!(Dpos::undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 75));
+			assert_ok!(Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_4.id,
+				candidate.id,
+				75
+			));
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
 				Some(DelegationInfo { amount: 200 - 75, last_modified_at: 10 })
@@ -180,7 +226,12 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 			}));
 
 			// Undelegate ACCOUNT_5
-			assert_ok!(Dpos::undelegate_candidate(ros(ACCOUNT_5.id), candidate.id, 199));
+			assert_ok!(Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_5.id,
+				candidate.id,
+				199
+			));
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_5.id, candidate.id),
 				Some(DelegationInfo { amount: 300 - 199, last_modified_at: 10 })
@@ -209,7 +260,12 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 
 			// Undelegate ALL from ACCOUNT_5
 			// We expect this will remove the account 5 from the delegation pool of the candidate
-			assert_ok!(Dpos::undelegate_candidate(ros(ACCOUNT_5.id), candidate.id, 101));
+			assert_ok!(Dpos::force_undelegate_candidate(
+				RuntimeOrigin::root(),
+				ACCOUNT_5.id,
+				candidate.id,
+				101
+			));
 			assert_eq!(DelegationInfos::<Test>::get(ACCOUNT_5.id, candidate.id), None);
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_5.id), 0);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![ACCOUNT_4.id]);
