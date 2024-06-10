@@ -10,7 +10,7 @@ fn should_failed_no_candidate_found() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
 		assert_err!(
-			Dpos::deregister_candidate(ros(ACCOUNT_1.id)),
+			Dpos::force_deregister_candidate(RuntimeOrigin::root(), ACCOUNT_1.id),
 			Error::<Test>::CandidateDoesNotExist
 		);
 	});
@@ -42,7 +42,7 @@ fn should_ok_deregister_sucessfully() {
 		);
 
 		// Then deregister
-		assert_ok!(Dpos::deregister_candidate(ros(succes_acc)));
+		assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), succes_acc));
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
 			candidate_id: succes_acc,
 		}));
@@ -137,7 +137,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(Balances::total_balance_on_hold(&candidate_3), hold_amount);
 
 		// Deregister candidate 1 from the candidate pool
-		assert_ok!(Dpos::deregister_candidate(ros(candidate_1)));
+		assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), candidate_1));
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
 			candidate_id: candidate_1,
 		}));
@@ -153,7 +153,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		);
 
 		// Deregister candidate 3 from the candidate pool
-		assert_ok!(Dpos::deregister_candidate(ros(candidate_3)));
+		assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), candidate_3));
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
 			candidate_id: candidate_3,
 		}));
@@ -166,7 +166,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		);
 
 		// Deregister candidate 2 from the candidate pool
-		assert_ok!(Dpos::deregister_candidate(ros(candidate_2)));
+		assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), candidate_2));
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
 			candidate_id: candidate_2,
 		}));
@@ -183,7 +183,6 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 	ext.genesis_candidates(vec![])
 		.min_candidate_bond(20)
 		.min_delegate_amount(50)
-		.max_delegate_count(3)
 		.build()
 		.execute_with(|| {
 			let candidate = ACCOUNT_3;
@@ -322,7 +321,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 			);
 
 			// Should clear all data of related delegations and the candidate
-			assert_ok!(Dpos::deregister_candidate(ros(candidate.id)));
+			assert_ok!(Dpos::force_deregister_candidate(RuntimeOrigin::root(), candidate.id));
 			System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
 				candidate_id: candidate.id,
 			}));

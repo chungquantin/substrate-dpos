@@ -41,14 +41,22 @@ fn should_fail_delegate_too_many_candidates() {
 	ext.genesis_candidates(vec![])
 		.min_candidate_bond(5)
 		.min_delegate_amount(90)
-		.max_delegate_count(1)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_2.id), 5));
-			assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_3.id), 40));
-			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), ACCOUNT_2.id, 200));
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_1.id), 5));
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_2.id), 40));
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_3.id), 5));
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_4.id), 40));
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_5.id), 40));
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_6.id), 40));
+
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_1.id, 200));
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_2.id, 200));
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_3.id, 200));
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_4.id, 200));
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_5.id, 200));
 			assert_err!(
-				Dpos::delegate_candidate(ros(ACCOUNT_4.id), ACCOUNT_3.id, 100),
+				Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_6.id, 100),
 				Error::<Test>::TooManyCandidateDelegations
 			);
 		});
@@ -60,7 +68,6 @@ fn should_ok_get_invalid_candidate() {
 	ext.genesis_candidates(vec![])
 		.min_candidate_bond(5)
 		.min_delegate_amount(101)
-		.max_delegate_count(1)
 		.build()
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_2.id), 5));
@@ -120,7 +127,6 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 	ext.genesis_candidates(vec![])
 		.min_candidate_bond(20)
 		.min_delegate_amount(101)
-		.max_delegate_count(3)
 		.build()
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
@@ -201,7 +207,6 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 	ext.genesis_candidates(vec![])
 		.min_candidate_bond(20)
 		.min_delegate_amount(50)
-		.max_delegate_count(3)
 		.build()
 		.execute_with(|| {
 			let (candidate_1, candidate_2, candidate_3) = (ACCOUNT_3, ACCOUNT_4, ACCOUNT_5);
@@ -330,7 +335,6 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 	ext.genesis_candidates(vec![])
 		.min_candidate_bond(20)
 		.min_delegate_amount(50)
-		.max_delegate_count(3)
 		.build()
 		.execute_with(|| {
 			let candidate = ACCOUNT_3;

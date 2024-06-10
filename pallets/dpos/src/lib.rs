@@ -75,6 +75,10 @@ pub mod pallet {
 		#[pallet::constant]
 		type MinActiveValidators: Get<u32>;
 
+		/// The maximum number of candidates that delegators can delegate to
+		#[pallet::constant]
+		type MaxDelegateCount: Get<u32>;
+
 		type ForceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
@@ -92,17 +96,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn min_candidate_bond)]
 	pub type MinCandidateBond<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
-
-	#[pallet::type_value]
-	pub fn DefaultMaxDelegateCount<T: Config>() -> u32 {
-		1
-	}
-
-	/// The maximum number of candidates that delegators can delegate to
-	#[pallet::storage]
-	#[pallet::getter(fn max_delegate_count)]
-	pub type MaxDelegateCount<T: Config> =
-		StorageValue<_, u32, ValueQuery, DefaultMaxDelegateCount<T>>;
 
 	/// The minimum number of delegate amount that the delegator need to provide for one candidate
 	#[pallet::storage]
@@ -126,7 +119,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn candidates)]
 	pub type CandidateDetailMap<T: Config> =
-		CountedStorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
+		StorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
 
 	/// Storing all the registration record of the candidates
 	#[pallet::storage]
@@ -183,12 +176,22 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// Store the requests for delay actions (Format: delay_xxxxx())
+	#[pallet::storage]
+	pub type DelayActionRequests<T: Config> = StorageValue<
+		_,
+		BoundedVec<
+			DelayActionRequest<T>,
+			AddGet<<T as Config>::MaxCandidates, <T as Config>::MaxDelegateCount>,
+		>,
+		ValueQuery,
+	>;
+
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub genesis_candidates: CandidatePool<T>,
 		pub min_candidate_bond: BalanceOf<T>,
-		pub max_delegate_count: u32,
 		pub min_delegate_amount: BalanceOf<T>,
 		pub epoch_duration: BlockNumberFor<T>,
 	}
@@ -211,7 +214,6 @@ pub mod pallet {
 			}
 
 			MinCandidateBond::<T>::put(self.min_candidate_bond);
-			MaxDelegateCount::<T>::put(self.max_delegate_count);
 			MinDelegateAmount::<T>::put(self.min_delegate_amount);
 			EpochDuration::<T>::put(self.epoch_duration);
 		}
@@ -344,7 +346,7 @@ pub mod pallet {
 					let delegate_count = DelegateCountMap::<T>::get(&delegator);
 					let new_delegate_count = delegate_count.saturating_add(1);
 					ensure!(
-						new_delegate_count <= MaxDelegateCount::<T>::get(),
+						new_delegate_count <= T::MaxDelegateCount::get(),
 						Error::<T>::TooManyCandidateDelegations
 					);
 					DelegateCountMap::<T>::set(&delegator, new_delegate_count);
@@ -398,36 +400,12 @@ pub mod pallet {
 
 		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
-			let candidate = ensure_signed(origin)?;
-			// Only hold the funds of a user which has no holds already.
-			ensure!(
-				CandidateDetailMap::<T>::contains_key(&candidate),
-				Error::<T>::CandidateDoesNotExist
-			);
-
-			let candidate_delegators = CandidateDelegators::<T>::get(&candidate);
-
-			// Processing all the delegators of the candidate
-			for delegator in candidate_delegators.into_inner() {
-				let delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
-					.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
-
-				// Trying to release all the hold amount of the delegators
-				Self::release_delegated_amount(&delegator, &delegation_info.amount)?;
-
-				// Removing any information related to the delegation between (candidate, delegator)
-				Self::remove_candidate_delegation(&delegator, &candidate);
-			}
-			CandidateDelegators::<T>::set(&candidate, BoundedVec::default());
-
-			// Releasing the hold bonds of the candidate
-			Self::release_candidate_bonds(&candidate)?;
-
-			// Removing any information related the registration of the candidate in the pool
-			Self::deregister_candidate_inner(&candidate);
-
-			Self::deposit_event(Event::CandidateRegistrationRemoved { candidate_id: candidate });
+		pub fn force_deregister_candidate(
+			origin: OriginFor<T>,
+			candidate: T::AccountId,
+		) -> DispatchResult {
+			T::ForceOrigin::ensure_origin(origin)?;
+			Self::deregister_candidate_inner(candidate)?;
 			Ok(())
 		}
 
@@ -450,7 +428,7 @@ pub mod pallet {
 			if new_delegated_amount.is_zero() {
 				// If the delegated amount is removed completely, we want to remove
 				// related information to the delegation betwene (delegator, candidate)
-				Self::remove_candidate_delegation(&delegator, &candidate);
+				Self::remove_candidate_delegation_data(&delegator, &candidate)?;
 			} else {
 				// Remove the delegated amoutn partially but makes sure it is still above
 				// the minimum delegated amount
@@ -471,6 +449,14 @@ pub mod pallet {
 				amount,
 				left_delegated_amount: new_delegated_amount,
 			});
+			Ok(())
+		}
+
+		#[pallet::call_index(20)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn delay_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
+			let candidate = ensure_signed(origin)?;
+			Self::deregister_candidate_inner(candidate)?;
 			Ok(())
 		}
 
@@ -556,7 +542,10 @@ pub mod pallet {
 			Ok(total_delegated_amount)
 		}
 
-		pub fn remove_candidate_delegation(delegator: &T::AccountId, candidate: &T::AccountId) {
+		pub fn remove_candidate_delegation_data(
+			delegator: &T::AccountId,
+			candidate: &T::AccountId,
+		) -> DispatchResult {
 			DelegationInfos::<T>::remove(&delegator, &candidate);
 
 			let delegate_count = DelegateCountMap::<T>::get(&delegator);
@@ -564,19 +553,71 @@ pub mod pallet {
 
 			// Remove delegator from the candidate delegators vector
 			let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
-			if let Ok(indx) = candidate_delegators.binary_search(&delegator) {
-				candidate_delegators.remove(indx);
-			}
+			candidate_delegators
+				.binary_search(&delegator)
+				.map_err(|_| Error::<T>::DelegationDoesNotExist)
+				.map(|indx| candidate_delegators.remove(indx))?;
 			CandidateDelegators::<T>::set(&candidate, candidate_delegators);
+
+			Ok(())
 		}
 
-		pub fn deregister_candidate_inner(candidate: &T::AccountId) {
+		pub fn remove_candidate_registration_data(candidate: &T::AccountId) {
 			// Remove candidate registration
 			let mut candidate_registrations = CandidateRegistrations::<T>::get();
 			candidate_registrations.retain(|registration| registration.request_by != *candidate);
 			CandidateRegistrations::<T>::set(candidate_registrations);
-			// CandidateDelegators:<T>::remove(&candidate);
 			CandidateDetailMap::<T>::remove(&candidate);
+		}
+
+		pub fn create_delay_action_request(
+			request_by: T::AccountId,
+			action_type: DelayActionType<T>,
+		) -> DispatchResult {
+			let mut delay_requests = DelayActionRequests::<T>::get();
+			delay_requests
+				.try_push(DelayActionRequest {
+					created_at: frame_system::Pallet::<T>::block_number(),
+					delay_for: 10u32.into(),
+					request_by,
+					action_type,
+				})
+				.map_err(|_| Error::<T>::TooManyValidators)?;
+			DelayActionRequests::<T>::set(delay_requests);
+
+			Ok(())
+		}
+
+		pub fn deregister_candidate_inner(candidate: T::AccountId) -> DispatchResult {
+			ensure!(
+				CandidateDetailMap::<T>::contains_key(&candidate),
+				Error::<T>::CandidateDoesNotExist
+			);
+
+			let candidate_delegators = CandidateDelegators::<T>::get(&candidate);
+
+			// Processing all the delegators of the candidate
+			for delegator in candidate_delegators.into_inner() {
+				let delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
+					.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+
+				// Trying to release all the hold amount of the delegators
+				Self::release_delegated_amount(&delegator, &delegation_info.amount)?;
+
+				// Removing any information related to the delegation between (candidate, delegator)
+				Self::remove_candidate_delegation_data(&delegator, &candidate)?;
+			}
+			CandidateDelegators::<T>::remove(&candidate);
+
+			// Releasing the hold bonds of the candidate
+			Self::release_candidate_bonds(&candidate)?;
+
+			// Removing any information related the registration of the candidate in the pool
+			Self::remove_candidate_registration_data(&candidate);
+
+			Self::deposit_event(Event::CandidateRegistrationRemoved { candidate_id: candidate });
+
+			Ok(())
 		}
 
 		pub fn register_as_candidate_inner(

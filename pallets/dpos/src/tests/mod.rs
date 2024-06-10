@@ -8,7 +8,7 @@ pub fn ros(indx: u64) -> RuntimeOrigin {
 #[cfg(test)]
 mod delegate_candidate;
 #[cfg(test)]
-mod deregister_candidate;
+mod force_deregister_candidate;
 #[cfg(test)]
 mod register_as_candidate;
 #[cfg(test)]

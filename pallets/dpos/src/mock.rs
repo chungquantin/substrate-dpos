@@ -33,6 +33,7 @@ parameter_types! {
 	pub const ExistentialDeposit : u128 = 1;
 	pub const MaxActiveValidators: u32 = 10;
 	pub const MinActiveValidators: u32 = 1;
+	pub const MaxDelegateCount : u32 = 5;
 }
 
 lazy_static! {
@@ -132,12 +133,12 @@ impl pallet_dpos::Config for Test {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type MaxActiveValidators = MaxActiveValidators;
 	type MinActiveValidators = MinActiveValidators;
+	type MaxDelegateCount = MaxDelegateCount;
 }
 
 pub struct TestExtBuilder {
 	epoch_duration: BlockNumberFor<Test>,
 	min_candidate_bond: BalanceOf<Test>,
-	max_delegate_count: u32,
 	min_delegate_amount: BalanceOf<Test>,
 	gensis_candidates: CandidatePool<Test>,
 }
@@ -147,7 +148,6 @@ impl Default for TestExtBuilder {
 		Self {
 			epoch_duration: 20,
 			min_candidate_bond: 10,
-			max_delegate_count: 4,
 			min_delegate_amount: 10,
 			gensis_candidates: DEFAULT_ACTIVE_SET.to_vec(),
 		}
@@ -169,11 +169,6 @@ impl TestExtBuilder {
 	#[allow(dead_code)]
 	pub fn genesis_candidates(&mut self, candidates: CandidatePool<Test>) -> &mut Self {
 		self.gensis_candidates = candidates;
-		self
-	}
-
-	pub fn max_delegate_count(&mut self, max_delegate_count: u32) -> &mut Self {
-		self.max_delegate_count = max_delegate_count;
 		self
 	}
 
@@ -218,7 +213,6 @@ impl TestExtBuilder {
 		let _ = pallet_dpos::GenesisConfig::<Test> {
 			epoch_duration: self.epoch_duration,
 			min_candidate_bond: self.min_candidate_bond,
-			max_delegate_count: self.max_delegate_count,
 			min_delegate_amount: self.min_delegate_amount,
 			genesis_candidates: self.gensis_candidates.clone(),
 		}
