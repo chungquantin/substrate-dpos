@@ -268,4 +268,12 @@ impl TestExtBuilder {
 			TestExtBuilder::next_block();
 		}
 	}
+
+	pub fn run_to_block_from(
+		from: BlockNumberFor<Test>,
+		n: BlockNumberFor<Test>,
+	) -> BlockNumberFor<Test> {
+		Self::run_to_block(from + n);
+		from + n
+	}
 }

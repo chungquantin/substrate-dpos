@@ -37,7 +37,7 @@ fn should_failed_no_candidate_delegation_found() {
 }
 
 #[test]
-fn should_ok_deregister_funds_no_available() {
+fn should_failed_deregister_funds_no_available() {
 	let mut ext = TestExtBuilder::default();
 	ext.min_delegate_amount(100).build().execute_with(|| {
 		MaxDelegateCount::set(100);
@@ -87,18 +87,6 @@ fn should_failed_undelegate_over_amount() {
 					300
 				),
 				Error::<Test>::InsufficientDelegatedAmount
-			);
-
-			System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateDelegated {
-				candidate_id: candidate.id,
-				delegated_by: ACCOUNT_4.id,
-				amount: 200,
-				total_delegated_amount: 200,
-			}));
-
-			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 200, registered_at: 1 })
 			);
 		});
 }

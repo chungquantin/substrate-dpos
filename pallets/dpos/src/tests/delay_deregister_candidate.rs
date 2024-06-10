@@ -30,7 +30,7 @@ fn should_ok_delay_deregister_sucessfully() {
 		assert_ok!(Dpos::delay_deregister_candidate(ros(succes_acc)));
 
 		// This does not deregister the candidate from the pool yet
-		TestExtBuilder::run_to_block(HALF_EPOCH);
+		let last_block_height = TestExtBuilder::run_to_block_from(10, TEST_BLOCKS_PER_EPOCH * 2);
 
 		assert_eq!(
 			CandidateDetailMap::<Test>::get(succes_acc),
@@ -41,12 +41,13 @@ fn should_ok_delay_deregister_sucessfully() {
 			vec![DelayActionRequest {
 				amount: None,
 				created_at: 10,
-				delay_for: Dpos::delay_deregister_candidate_duration()
+				delay_for: Dpos::delay_deregister_candidate_duration(),
+				target: None
 			}]
 		);
 
 		// We go the few other blocks and try to execute it again
-		TestExtBuilder::run_to_block(TEST_BLOCKS_PER_EPOCH * 2);
+		TestExtBuilder::run_to_block_from(last_block_height, TEST_BLOCKS_PER_EPOCH * 2);
 
 		assert_ok!(Dpos::execute_deregister_candidate(ros(succes_acc)));
 
@@ -77,7 +78,8 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 				vec![DelayActionRequest {
 					amount: None,
 					created_at: 1010,
-					delay_for: Dpos::delay_deregister_candidate_duration()
+					delay_for: Dpos::delay_deregister_candidate_duration(),
+					target: None
 				}]
 			);
 
@@ -97,7 +99,7 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 			);
 		}
 
-		TestExtBuilder::run_to_block(1010 + TEST_BLOCKS_PER_EPOCH * 2);
+		TestExtBuilder::run_to_block_from(1010, TEST_BLOCKS_PER_EPOCH * 2);
 
 		for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
 			assert_ok!(Dpos::execute_deregister_candidate(ros(candidate)));
@@ -152,7 +154,8 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 					vec![DelayActionRequest {
 						amount: None,
 						created_at: 1010,
-						delay_for: Dpos::delay_deregister_candidate_duration()
+						delay_for: Dpos::delay_deregister_candidate_duration(),
+						target: None
 					}]
 				);
 
@@ -176,7 +179,7 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 				);
 			}
 
-			TestExtBuilder::run_to_block(1010 + HALF_EPOCH);
+			TestExtBuilder::run_to_block_from(1010, HALF_EPOCH);
 
 			for (_, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
 				assert_noop!(
@@ -190,7 +193,8 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 					vec![DelayActionRequest {
 						amount: None,
 						created_at: 1010,
-						delay_for: Dpos::delay_deregister_candidate_duration()
+						delay_for: Dpos::delay_deregister_candidate_duration(),
+						target: None
 					}]
 				);
 				assert_eq!(
@@ -234,7 +238,8 @@ fn should_ok_cancel_deregister_candidate_requests() {
 					vec![DelayActionRequest {
 						amount: None,
 						created_at: 1010,
-						delay_for: Dpos::delay_deregister_candidate_duration()
+						delay_for: Dpos::delay_deregister_candidate_duration(),
+						target: None
 					}]
 				);
 
@@ -258,7 +263,7 @@ fn should_ok_cancel_deregister_candidate_requests() {
 				);
 			}
 
-			TestExtBuilder::run_to_block(1010 + HALF_EPOCH);
+			TestExtBuilder::run_to_block_from(1010, HALF_EPOCH);
 
 			for (_, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
 				assert_ok!(Dpos::cancel_deregister_candidate_request(ros(candidate)));
@@ -309,7 +314,8 @@ fn should_failed_cancel_not_found_delay_action_request() {
 			vec![DelayActionRequest {
 				amount: None,
 				created_at: 10,
-				delay_for: Dpos::delay_deregister_candidate_duration()
+				delay_for: Dpos::delay_deregister_candidate_duration(),
+				target: None
 			}]
 		);
 

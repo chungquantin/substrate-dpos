@@ -125,7 +125,7 @@ pub mod pallet {
 
 	/// Number of blocks required for the undelegate_candidate to work
 	#[pallet::storage]
-	#[pallet::getter(fn delay_undelegate_candidate)]
+	#[pallet::getter(fn delay_undelegate_candidate_duration)]
 	pub type DelayUndelegateCandidate<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	/// Mapping the validator ID with the reigstered candidate detail
@@ -311,6 +311,8 @@ pub mod pallet {
 		InsufficientDelegatedAmount,
 		NoDelayActionRequestFound,
 		ActionIsStillInDelayDuration,
+		InvalidDelayActionPayload,
+		InvalidAmount,
 	}
 
 	/// A reason for the pallet dpos placing a hold on funds.
@@ -332,6 +334,8 @@ pub mod pallet {
 			candidate: T::AccountId,
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
+			ensure!(amount > Zero::zero(), Error::<T>::InvalidAmount);
+
 			let delegator = ensure_signed(origin)?;
 			match DelegationInfos::<T>::try_get(&delegator, &candidate) {
 				Ok(mut delegation_info) => {
@@ -391,6 +395,7 @@ pub mod pallet {
 		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
 			let validator = ensure_signed(origin)?;
 
+			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
 			ensure!(bond >= MinCandidateBond::<T>::get(), Error::<T>::BelowMinimumCandidateBond);
 			// Only hold the funds of a user which has no holds already.
 			ensure!(
@@ -451,31 +456,59 @@ pub mod pallet {
 				CandidateDetailMap::<T>::contains_key(&candidate),
 				Error::<T>::CandidateDoesNotExist
 			);
-			Self::create_delay_action_request(candidate, None, DelayActionType::CandidateLeaved)?;
+			Self::create_delay_action_request(
+				candidate,
+				None,
+				None,
+				DelayActionType::CandidateLeaved,
+			)?;
 			Ok(())
 		}
 
 		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn execute_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
-			let executor = ensure_signed(origin)?;
-			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
-			// time
-			Self::execute_delay_action_inner(executor, DelayActionType::CandidateLeaved, 0)?;
+		pub fn delay_undelegate_candidate(
+			origin: OriginFor<T>,
+			candidate: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let delegator = ensure_signed(origin)?;
+			ensure!(
+				CandidateDetailMap::<T>::contains_key(&candidate),
+				Error::<T>::CandidateDoesNotExist
+			);
+
+			DelegationInfos::<T>::try_get(&delegator, &candidate)
+				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
+
+			Self::create_delay_action_request(
+				delegator,
+				Some(candidate),
+				Some(amount),
+				DelayActionType::CandidateUndelegated,
+			)?;
 			Ok(())
 		}
 
 		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn cancel_deregister_candidate_request(origin: OriginFor<T>) -> DispatchResult {
+		pub fn execute_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
-			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
-			// time
-			Self::cancel_action_request_inner(executor, DelayActionType::CandidateLeaved, 0)?;
+			// Default index of the deregister_candidate is 0 because we only allow 1 request at a time
+			Self::execute_delay_action_inner(executor, DelayActionType::CandidateLeaved, 0)?;
 			Ok(())
 		}
 
 		#[pallet::call_index(8)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn cancel_deregister_candidate_request(origin: OriginFor<T>) -> DispatchResult {
+			let executor = ensure_signed(origin)?;
+			// Default index of the deregister_candidate is 0 because we only allow 1 request at a time
+			Self::cancel_action_request_inner(executor, DelayActionType::CandidateLeaved, 0)?;
+			Ok(())
+		}
+
+		#[pallet::call_index(9)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn execute_undelegate_candidate(origin: OriginFor<T>, indx: u32) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
@@ -487,7 +520,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(9)]
+		#[pallet::call_index(10)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn cancel_undelegate_candidate_request(
 			origin: OriginFor<T>,
@@ -637,8 +670,15 @@ pub mod pallet {
 						DelayActionType::CandidateLeaved => {
 							Self::deregister_candidate_inner(request_by.clone())?;
 						},
-						DelayActionType::CandidateUndelegated => {
-							unimplemented!();
+						DelayActionType::CandidateUndelegated => match &request.target {
+							Some(candidate) => {
+								Self::undelegate_candidate_inner(
+									request_by.clone(),
+									candidate.clone(),
+									request.amount.unwrap_or_default(),
+								)?;
+							},
+							None => return Err(Error::<T>::InvalidDelayActionPayload.into()),
 						},
 					}
 					delay_requests.remove(indx as usize);
@@ -652,12 +692,14 @@ pub mod pallet {
 
 		fn create_delay_action_request(
 			request_by: T::AccountId,
+			target: Option<T::AccountId>,
 			consumed_amount: Option<BalanceOf<T>>,
 			action_type: DelayActionType,
 		) -> DispatchResult {
 			let mut delay_requests = DelayActionRequests::<T>::get(&request_by, &action_type);
 			delay_requests
 				.try_push(DelayActionRequest {
+					target,
 					created_at: frame_system::Pallet::<T>::block_number(),
 					delay_for: Self::get_delay_action_duration(&action_type),
 					amount: consumed_amount,
@@ -700,6 +742,8 @@ pub mod pallet {
 			candidate: T::AccountId,
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
+			ensure!(amount > Zero::zero(), Error::<T>::InvalidAmount);
+
 			let mut delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
 				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
 			let new_delegated_amount = match delegation_info.amount.checked_sub(&amount) {
@@ -755,8 +799,10 @@ pub mod pallet {
 		}
 
 		fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
-			let min_delegate_amount = MinDelegateAmount::<T>::get();
-			ensure!(amount >= min_delegate_amount, Error::<T>::BelowMinimumDelegateAmount);
+			ensure!(
+				amount >= MinDelegateAmount::<T>::get(),
+				Error::<T>::BelowMinimumDelegateAmount
+			);
 			Ok(())
 		}
 

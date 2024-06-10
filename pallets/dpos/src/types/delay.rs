@@ -18,4 +18,5 @@ pub struct DelayActionRequest<T: Config> {
 	pub created_at: BlockNumberFor<T>,
 	pub delay_for: BlockNumberFor<T>,
 	pub amount: Option<BalanceOf<T>>,
+	pub target: Option<T::AccountId>,
 }
