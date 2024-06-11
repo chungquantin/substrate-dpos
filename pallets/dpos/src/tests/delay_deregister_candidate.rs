@@ -38,7 +38,7 @@ fn should_ok_delay_deregister_sucessfully() {
 				bond: hold_amount,
 				registered_at: 10,
 				total_delegations: 0,
-				status: types::ValidatorStatus::Online
+				status: types::ValidatorStatus::Offline
 			})
 		);
 		assert_eq!(
@@ -46,7 +46,7 @@ fn should_ok_delay_deregister_sucessfully() {
 			Some(DelayActionRequest {
 				amount: None,
 				created_at: 10,
-				delay_for: Dpos::delay_deregister_candidate_duration(),
+				delay_for: <mock::Test as pallet::Config>::DelayDeregisterCandidateDuration::get(),
 				target: None
 			})
 		);
@@ -89,7 +89,8 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
-						delay_for: Dpos::delay_deregister_candidate_duration(),
+						delay_for:
+							<mock::Test as pallet::Config>::DelayDeregisterCandidateDuration::get(),
 						target: None
 					})
 				);
@@ -155,7 +156,7 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 // - Move to the block number < DELAY_DURATION
 // - Expect error thrown
 #[test]
-fn should_failed_delay_deregister_candidates_behinds_due_date() {
+fn should_failed_delay_deregister_candidates_before_due_date() {
 	let mut ext = TestExtBuilder::default();
 	ext.reward_distribution_disabled()
 		.delay_deregister_candidate_duration(TEST_BLOCKS_PER_EPOCH)
@@ -167,23 +168,42 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 			ext.run_to_block(1010);
 
 			let delegated_amount = 101;
-			for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+			for (indx, (candidate, bond)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+				assert_eq!(
+					CandidatePool::<Test>::get(candidate),
+					Some(CandidateDetail {
+						bond,
+						registered_at: 0,
+						total_delegations: 0,
+						status: types::ValidatorStatus::Online
+					})
+				);
 				assert_ok!(Dpos::delay_deregister_candidate(ros(candidate)));
+
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
 					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
-						delay_for: Dpos::delay_deregister_candidate_duration(),
+						delay_for:
+							<mock::Test as pallet::Config>::DelayDeregisterCandidateDuration::get(),
 						target: None
 					})
 				);
-
 				assert_ok!(Dpos::delegate_candidate(
 					ros(ACCOUNT_6.id),
 					candidate,
 					delegated_amount
 				));
+				assert_eq!(
+					CandidatePool::<Test>::get(candidate),
+					Some(CandidateDetail {
+						bond,
+						registered_at: 0,
+						total_delegations: delegated_amount,
+						status: types::ValidatorStatus::Offline
+					})
+				);
 				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
@@ -201,10 +221,28 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 
 			ext.run_to_block_from(1010, HALF_EPOCH);
 
-			for (_, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+			for (_, (candidate, bond)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+				assert_eq!(
+					CandidatePool::<Test>::get(candidate),
+					Some(CandidateDetail {
+						bond,
+						registered_at: 0,
+						total_delegations: delegated_amount,
+						status: types::ValidatorStatus::Offline
+					})
+				);
 				assert_noop!(
 					Dpos::execute_deregister_candidate(ros(candidate)),
 					Error::<Test>::ActionIsStillInDelayDuration
+				);
+				assert_eq!(
+					CandidatePool::<Test>::get(candidate),
+					Some(CandidateDetail {
+						bond,
+						registered_at: 0,
+						total_delegations: delegated_amount,
+						status: types::ValidatorStatus::Offline
+					})
 				);
 
 				assert_eq!(CandidatePool::<Test>::count(), DEFAULT_ACTIVE_SET.len() as u32);
@@ -213,7 +251,8 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
-						delay_for: Dpos::delay_deregister_candidate_duration(),
+						delay_for:
+							<mock::Test as pallet::Config>::DelayDeregisterCandidateDuration::get(),
 						target: None
 					})
 				);
@@ -251,14 +290,26 @@ fn should_ok_cancel_deregister_candidate_requests() {
 			ext.run_to_block(1010);
 
 			let delegated_amount = 101;
-			for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+			for (indx, (candidate, hold_amount)) in
+				DEFAULT_ACTIVE_SET.clone().into_iter().enumerate()
+			{
+				assert_eq!(
+					CandidatePool::<Test>::get(candidate),
+					Some(CandidateDetail {
+						bond: hold_amount,
+						registered_at: 0,
+						total_delegations: 0,
+						status: types::ValidatorStatus::Online
+					})
+				);
 				assert_ok!(Dpos::delay_deregister_candidate(ros(candidate)));
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
 					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
-						delay_for: Dpos::delay_deregister_candidate_duration(),
+						delay_for:
+							<mock::Test as pallet::Config>::DelayDeregisterCandidateDuration::get(),
 						target: None
 					})
 				);
@@ -268,6 +319,15 @@ fn should_ok_cancel_deregister_candidate_requests() {
 					candidate,
 					delegated_amount
 				));
+				assert_eq!(
+					CandidatePool::<Test>::get(candidate),
+					Some(CandidateDetail {
+						bond: hold_amount,
+						registered_at: 0,
+						total_delegations: delegated_amount,
+						status: types::ValidatorStatus::Offline
+					})
+				);
 				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
@@ -285,8 +345,17 @@ fn should_ok_cancel_deregister_candidate_requests() {
 
 			ext.run_to_block_from(1010, HALF_EPOCH);
 
-			for (_, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
+			for (_, (candidate, bond)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
 				assert_ok!(Dpos::cancel_deregister_candidate_request(ros(candidate)));
+				assert_eq!(
+					CandidatePool::<Test>::get(candidate),
+					Some(CandidateDetail {
+						bond,
+						registered_at: 0,
+						total_delegations: delegated_amount,
+						status: types::ValidatorStatus::Online
+					})
+				);
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
 					None
@@ -336,7 +405,7 @@ fn should_failed_cancel_not_found_delay_action_request() {
 				bond: hold_amount,
 				registered_at: 10,
 				total_delegations: 0,
-				status: types::ValidatorStatus::Online
+				status: types::ValidatorStatus::Offline
 			})
 		);
 		assert_eq!(
@@ -344,7 +413,7 @@ fn should_failed_cancel_not_found_delay_action_request() {
 			Some(DelayActionRequest {
 				amount: None,
 				created_at: 10,
-				delay_for: Dpos::delay_deregister_candidate_duration(),
+				delay_for: <mock::Test as pallet::Config>::DelayDeregisterCandidateDuration::get(),
 				target: None
 			})
 		);
@@ -359,9 +428,64 @@ fn should_failed_cancel_not_found_delay_action_request() {
 	});
 }
 
+/// Test should failed when trying to deregister while there is another delay action request
 #[test]
 fn should_failed_deregister_while_in_delay_duration() {
-	todo!(
-		"Test should failed when trying to deregister while there is another delay action request"
-	);
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![]).build().execute_with(|| {
+		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
+		let hold_amount = 15;
+
+		ext.run_to_block(10);
+		// Register first
+		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
+		assert_eq!(
+			CandidatePool::<Test>::get(succes_acc),
+			Some(CandidateDetail {
+				bond: hold_amount,
+				registered_at: 10,
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
+			})
+		);
+		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
+		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
+		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
+			candidate_id: 2,
+			initial_bond: 15,
+		}));
+
+		// Then schedule to deregister
+		assert_ok!(Dpos::delay_deregister_candidate(ros(succes_acc)));
+
+		// This does not deregister the candidate from the pool yet
+		ext.run_to_block(HALF_EPOCH);
+
+		assert_eq!(
+			CandidatePool::<Test>::get(succes_acc),
+			Some(CandidateDetail {
+				bond: hold_amount,
+				registered_at: 10,
+				total_delegations: 0,
+				status: types::ValidatorStatus::Offline
+			})
+		);
+		assert_eq!(
+			DelayActionRequests::<Test>::get(succes_acc, DelayActionType::CandidateLeaved),
+			Some(DelayActionRequest {
+				amount: None,
+				created_at: 10,
+				delay_for: <mock::Test as pallet::Config>::DelayDeregisterCandidateDuration::get(),
+				target: None
+			})
+		);
+
+		// We go the few other blocks and try to execute it again
+		ext.run_to_block(TEST_BLOCKS_PER_EPOCH * 2);
+
+		assert_noop!(
+			Dpos::delay_deregister_candidate(ros(succes_acc)),
+			Error::<Test>::ActionIsStillInDelayDuration
+		);
+	});
 }

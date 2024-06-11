@@ -8,7 +8,7 @@ fn is_active_validator_set_sorted<T: Config>(validators: &ActiveValidatorSet<T>)
 }
 
 fn author_reward(total_staked: Balance) -> Balance {
-	Dpos::calculate_reward(total_staked, AuthorCommission::<Test>::get())
+	Dpos::calculate_reward(total_staked, <mock::Test as pallet::Config>::AuthorCommission::get())
 }
 
 fn find_author() -> Option<AccountId> {

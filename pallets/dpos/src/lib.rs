@@ -17,7 +17,7 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// TODO switch status of the validator and delegator to offline if they request a delay action
+// TODO exclude the offline validator from the active set
 // TODO fix genesis_config build test error
 // TODO algorithm for reward distribution
 // TODO add simulation test for reward distribution
@@ -96,6 +96,38 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxDelegateCount: Get<u32>;
 
+		/// The minimum number of stake that the candidate need to provide to secure slot
+		#[pallet::constant]
+		type MinCandidateBond: Get<BalanceOf<Self>>;
+
+		/// The minimum number of delegate amount that the delegator need to provide for one
+		/// candidate
+		#[pallet::constant]
+		type MinDelegateAmount: Get<BalanceOf<Self>>;
+
+		/// We use a configurable constant `BlockNumber` to tell us when we should trigger the
+		/// validator set change. The runtime developer should implement this to represent the time
+		/// they want validators to change, but for your pallet, you just care about the block
+		/// number.
+		#[pallet::constant]
+		type EpochDuration: Get<BlockNumberFor<Self>>;
+
+		/// Number of blocks required for the deregister_candidate_method to work
+		#[pallet::constant]
+		type DelayDeregisterCandidateDuration: Get<BlockNumberFor<Self>>;
+
+		/// Number of blocks required for the undelegate_candidate to work
+		#[pallet::constant]
+		type DelayUndelegateCandidate: Get<BlockNumberFor<Self>>;
+
+		/// Percentage of commission that the delegator receives for their delegations
+		#[pallet::constant]
+		type DelegatorCommission: Get<u8>;
+
+		/// Percentage of commission that the active validator receives for their delegations
+		#[pallet::constant]
+		type AuthorCommission: Get<u8>;
+
 		type ForceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
 		/// this pallet.
@@ -109,40 +141,6 @@ pub mod pallet {
 		type RuntimeHoldReason: From<HoldReason>;
 	}
 
-	/// The minimum number of stake that the candidate need to provide to secure slot
-	#[pallet::storage]
-	#[pallet::getter(fn min_candidate_bond)]
-	pub type MinCandidateBond<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
-
-	/// The minimum number of delegate amount that the delegator need to provide for one candidate
-	#[pallet::storage]
-	#[pallet::getter(fn min_delegate_amount)]
-	pub type MinDelegateAmount<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn total_active_candidates)]
-	/// The total candidates are assigned to the active set
-	pub(crate) type TotalActiveCandidates<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	/// We use a configurable constant `BlockNumber` to tell us when we should trigger the
-	/// validator set change. The runtime developer should implement this to represent the time
-	/// they want validators to change, but for your pallet, you just care about the block
-	/// number.
-	#[pallet::storage]
-	#[pallet::getter(fn epoch_duration)]
-	pub type EpochDuration<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
-	/// Number of blocks required for the deregister_candidate_method to work
-	#[pallet::storage]
-	#[pallet::getter(fn delay_deregister_candidate_duration)]
-	pub type DelayDeregisterCandidateDuration<T: Config> =
-		StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
-	/// Number of blocks required for the undelegate_candidate to work
-	#[pallet::storage]
-	#[pallet::getter(fn delay_undelegate_candidate_duration)]
-	pub type DelayUndelegateCandidate<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
 	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
 	#[pallet::getter(fn candidates)]
@@ -152,16 +150,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn epoch_info)]
 	pub type CurrentEpochInfo<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
-	/// Percentage of commission that the delegator receives for their delegations
-	#[pallet::storage]
-	#[pallet::getter(fn delegator_commission)]
-	pub type DelegatorCommission<T: Config> = StorageValue<_, u8, ValueQuery>;
-
-	/// Percentage of commission that the active validator receives for their delegations
-	#[pallet::storage]
-	#[pallet::getter(fn author_comission)]
-	pub type AuthorCommission<T: Config> = StorageValue<_, u8, ValueQuery>;
 
 	/// Selected validators for the current epoch
 	#[pallet::storage]
@@ -218,13 +206,6 @@ pub mod pallet {
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub genesis_candidates: CandidateSet<T>,
-		pub min_candidate_bond: BalanceOf<T>,
-		pub min_delegate_amount: BalanceOf<T>,
-		pub validator_commission: u8,
-		pub delegator_commission: u8,
-		pub epoch_duration: BlockNumberFor<T>,
-		pub delay_deregister_candidate_duration: BlockNumberFor<T>,
-		pub delay_undelegate_candidate: BlockNumberFor<T>,
 	}
 
 	#[pallet::genesis_build]
@@ -236,33 +217,23 @@ pub mod pallet {
 			);
 
 			assert!(
-				self.validator_commission > 0 && self.validator_commission <= 100,
+				T::AuthorCommission::get() > 0 && T::AuthorCommission::get() <= 100,
 				"Validator commission must be in percentage"
 			);
 
 			assert!(
-				self.delegator_commission > 0 && self.delegator_commission <= 100,
+				T::DelegatorCommission::get() > 0 && T::DelegatorCommission::get() <= 100,
 				"Delegator commission must be in percentage"
 			);
 
 			let mut visited: BTreeSet<T::AccountId> = BTreeSet::default();
 			for (candidate, bond) in self.genesis_candidates.iter() {
-				assert!(*bond >= self.min_candidate_bond, "Invalid bond for genesis candidate");
+				assert!(*bond >= T::MinCandidateBond::get(), "Invalid bond for genesis candidate");
 				assert!(visited.insert(candidate.clone()), "Candidate registration duplicates");
 
 				Pallet::<T>::register_as_candidate_inner(&candidate, *bond)
 					.expect("Register candidate error");
 			}
-
-			MinCandidateBond::<T>::put(self.min_candidate_bond);
-			MinDelegateAmount::<T>::put(self.min_delegate_amount);
-			EpochDuration::<T>::put(self.epoch_duration);
-
-			AuthorCommission::<T>::put(self.validator_commission);
-			DelegatorCommission::<T>::put(self.delegator_commission);
-
-			DelayDeregisterCandidateDuration::<T>::put(self.delay_deregister_candidate_duration);
-			DelayUndelegateCandidate::<T>::put(self.delay_deregister_candidate_duration);
 
 			CurrentActiveValidators::<T>::put(
 				BoundedVec::try_from(Pallet::<T>::select_active_validator_set().to_vec())
@@ -326,7 +297,7 @@ pub mod pallet {
 			);
 
 			assert!(
-				T::MinActiveValidators::get() > T::MaxActiveValidators::get(),
+				T::MinActiveValidators::get() < T::MaxActiveValidators::get(),
 				"Minimum number of validators must be lower than the maximum number of validators"
 			);
 		}
@@ -334,7 +305,7 @@ pub mod pallet {
 		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			// This is a pretty lightweight check that we do EVERY block, but then tells us when an
 			// Epoch has passed...
-			let epoch_indx = n % EpochDuration::<T>::get();
+			let epoch_indx = n % T::EpochDuration::get();
 			let active_validator_set = Self::select_active_validator_set();
 			if epoch_indx == BlockNumberFor::<T>::zero() {
 				// CHANGE VALIDATORS LOGIC
@@ -467,14 +438,6 @@ pub mod pallet {
 		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
 			let validator = ensure_signed(origin)?;
 
-			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
-			ensure!(bond >= MinCandidateBond::<T>::get(), Error::<T>::BelowMinimumCandidateBond);
-			// Only hold the funds of a user which has no holds already.
-			ensure!(
-				!CandidatePool::<T>::contains_key(&validator),
-				Error::<T>::CandidateAlreadyExist
-			);
-
 			Self::register_as_candidate_inner(&validator, bond)?;
 
 			Self::deposit_event(Event::CandidateRegistered {
@@ -524,16 +487,24 @@ pub mod pallet {
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn delay_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let candidate = ensure_signed(origin)?;
+
 			ensure!(
-				CandidatePool::<T>::contains_key(&candidate),
-				Error::<T>::CandidateDoesNotExist
+				!DelayActionRequests::<T>::contains_key(
+					&candidate,
+					DelayActionType::CandidateLeaved
+				),
+				Error::<T>::ActionIsStillInDelayDuration
 			);
+
+			Self::toggle_candidate_status(&candidate)?;
+
 			Self::create_delay_action_request(
 				candidate,
 				None,
 				None,
 				DelayActionType::CandidateLeaved,
 			)?;
+
 			Ok(())
 		}
 
@@ -548,6 +519,14 @@ pub mod pallet {
 			ensure!(
 				CandidatePool::<T>::contains_key(&candidate),
 				Error::<T>::CandidateDoesNotExist
+			);
+
+			ensure!(
+				!DelayActionRequests::<T>::contains_key(
+					&delegator,
+					DelayActionType::CandidateUndelegated
+				),
+				Error::<T>::ActionIsStillInDelayDuration
 			);
 
 			DelegationInfos::<T>::try_get(&delegator, &candidate)
@@ -578,7 +557,8 @@ pub mod pallet {
 			let executor = ensure_signed(origin)?;
 			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
 			// time
-			Self::cancel_action_request_inner(executor, DelayActionType::CandidateLeaved)?;
+			Self::cancel_action_request_inner(executor.clone(), DelayActionType::CandidateLeaved)?;
+			Self::toggle_candidate_status(&executor)?;
 			Ok(())
 		}
 
@@ -618,6 +598,14 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		pub(crate) fn toggle_candidate_status(candidate: &T::AccountId) -> DispatchResult {
+			let mut candidate_detail = CandidatePool::<T>::try_get(&candidate)
+				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+			candidate_detail.toggle_status();
+			CandidatePool::<T>::set(&candidate, Some(candidate_detail));
+			Ok(())
+		}
+
 		pub(crate) fn select_active_validator_set() -> ActiveValidatorSet<T> {
 			let total_in_active_set = T::MaxActiveValidators::get();
 			if CandidatePool::<T>::count() < total_in_active_set {
@@ -697,8 +685,8 @@ pub mod pallet {
 
 		fn get_delay_action_duration(action_type: &DelayActionType) -> BlockNumberFor<T> {
 			match action_type {
-				DelayActionType::CandidateLeaved => DelayDeregisterCandidateDuration::<T>::get(),
-				DelayActionType::CandidateUndelegated => DelayUndelegateCandidate::<T>::get(),
+				DelayActionType::CandidateLeaved => T::DelayDeregisterCandidateDuration::get(),
+				DelayActionType::CandidateUndelegated => T::DelayUndelegateCandidate::get(),
 			}
 		}
 
@@ -727,6 +715,7 @@ pub mod pallet {
 						now.saturating_sub(request.created_at) >= request.delay_for,
 						Error::<T>::ActionIsStillInDelayDuration
 					);
+
 					match action_type {
 						DelayActionType::CandidateLeaved => {
 							Self::deregister_candidate_inner(request_by.clone())?;
@@ -822,6 +811,7 @@ pub mod pallet {
 				delegation_info.update_delegated_amount(new_delegated_amount);
 				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 			}
+			log::info!("delegator: {:?} - amount: {:?}", delegator, amount);
 			// Releasing the hold amount for the delegation betwene (delegator, candidate)
 			Self::release_delegated_amount(&delegator, &amount)?;
 
@@ -842,6 +832,18 @@ pub mod pallet {
 			validator: &T::AccountId,
 			bond: BalanceOf<T>,
 		) -> DispatchResult {
+			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
+			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
+			// Only hold the funds of a user which has no holds already.
+			ensure!(
+				!CandidatePool::<T>::contains_key(&validator),
+				Error::<T>::CandidateAlreadyExist
+			);
+
+			ensure!(
+				CandidatePool::<T>::count().saturating_add(1) <= T::MaxCandidates::get(),
+				Error::<T>::TooManyValidators
+			);
 			// Hold the amount for candidate bond registration
 			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
 
@@ -854,10 +856,7 @@ pub mod pallet {
 		}
 
 		fn check_delegated_amount(amount: BalanceOf<T>) -> DispatchResult {
-			ensure!(
-				amount >= MinDelegateAmount::<T>::get(),
-				Error::<T>::BelowMinimumDelegateAmount
-			);
+			ensure!(amount >= T::MinDelegateAmount::get(), Error::<T>::BelowMinimumDelegateAmount);
 			Ok(())
 		}
 
@@ -894,13 +893,13 @@ pub mod pallet {
 		) {
 			let _ = T::NativeBalance::mint_into(
 				&active_validator,
-				Self::calculate_reward(total_staked, AuthorCommission::<T>::get()),
+				Self::calculate_reward(total_staked, T::AuthorCommission::get()),
 			);
 
 			let delegators = CandidateDelegators::<T>::get(&active_validator);
 			for delegator in delegators.iter() {
 				let delegator_reward =
-					Self::calculate_reward(total_staked, DelegatorCommission::<T>::get());
+					Self::calculate_reward(total_staked, T::DelegatorCommission::get());
 				let _ = T::NativeBalance::mint_into(&delegator, delegator_reward);
 			}
 		}

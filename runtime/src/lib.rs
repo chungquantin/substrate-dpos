@@ -165,12 +165,18 @@ impl pallet_assets::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxCandidates: u32 = 10;
-	pub const MaxCandidateDelegators: u32 = 500;
+	pub const MaxCandidates : u32 = 200;
+	pub const MaxCandidateDelegators : u32 = 500;
 	pub const MinCandidateBond: u32 = 10;
-	pub const MaxActivevalidators: u32 = 10;
-	pub const MinActiveValidators: u32 = 1;
-	pub const MaxDelegateCount : u32 = 5;
+	pub const MaxActivevalidators: u32 = 100;
+	pub const MinActiveValidators: u32 = 3;
+	pub const MaxDelegateCount : u32 = 20;
+	pub const DelayDeregisterCandidateDuration : u32 = 20;
+	pub const DelayUndelegateCandidate : u32 = 20;
+	pub const EpochDuration : u32 = 20;
+	pub const MinDelegateAmount : u128 = 10;
+	pub const ValidatorCommission : u8 = 3;
+	pub const DelegatorCommission : u8 = 1;
 }
 
 pub struct BlockAuthor;
@@ -216,6 +222,13 @@ impl pallet_dpos::Config for Runtime {
 	type WeightInfo = ();
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type MaxDelegateCount = MaxDelegateCount;
+	type DelayDeregisterCandidateDuration = DelayDeregisterCandidateDuration;
+	type DelayUndelegateCandidate = DelayUndelegateCandidate;
+	type EpochDuration = EpochDuration;
+	type MinCandidateBond = MinCandidateBond;
+	type MinDelegateAmount = MinDelegateAmount;
+	type AuthorCommission = ValidatorCommission;
+	type DelegatorCommission = DelegatorCommission;
 }
 
 impl pallet_authorship::Config for Runtime {

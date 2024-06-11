@@ -28,13 +28,19 @@ frame_support::construct_runtime! {
 }
 
 parameter_types! {
-	pub static MaxCandidates: u32 = 20;
+	pub static MaxCandidates: u32 = 200;
 	pub static MaxCandidateDelegators: u32 = 5;
 	pub static ExistentialDeposit : u128 = 1;
 	pub static MaxActiveValidators: u32 = 10;
 	pub static MinActiveValidators: u32 = 1;
-	pub static MaxDelegateCount : u32 = 5;
-	pub static Author: AccountId = 7;
+	pub static MaxDelegateCount : u32 = 20;
+	pub static DelayDeregisterCandidateDuration : u64 = TEST_BLOCKS_PER_EPOCH;
+	pub static DelayUndelegateCandidate : u64 = TEST_BLOCKS_PER_EPOCH;
+	pub static EpochDuration : u64 = TEST_BLOCKS_PER_EPOCH;
+	pub static MinCandidateBond : u128 = 10;
+	pub static MinDelegateAmount : u128 = 10;
+	pub static ValidatorCommission : u8 = 3;
+	pub static DelegatorCommission : u8 = 1;
 }
 
 pub const REGISTRATION_HOLD_AMOUNT: u128 = 200;
@@ -146,35 +152,23 @@ impl pallet_dpos::Config for Test {
 	type MaxActiveValidators = MaxActiveValidators;
 	type MinActiveValidators = MinActiveValidators;
 	type MaxDelegateCount = MaxDelegateCount;
+	type DelayDeregisterCandidateDuration = DelayDeregisterCandidateDuration;
+	type DelayUndelegateCandidate = DelayUndelegateCandidate;
+	type EpochDuration = EpochDuration;
+	type MinCandidateBond = MinCandidateBond;
+	type MinDelegateAmount = MinDelegateAmount;
+	type AuthorCommission = ValidatorCommission;
+	type DelegatorCommission = DelegatorCommission;
 }
 
 pub struct TestExtBuilder {
-	epoch_duration: BlockNumberFor<Test>,
-	min_candidate_bond: BalanceOf<Test>,
-	min_delegate_amount: BalanceOf<Test>,
 	gensis_candidates: CandidateSet<Test>,
-	delay_deregister_candidate_duration: BlockNumberFor<Test>,
-	delay_reward_payout_sent: BlockNumberFor<Test>,
-	delay_undelegate_candidate: BlockNumberFor<Test>,
-	validator_commission: u8,
-	delegator_commission: u8,
 	reward_distribution_disabled: bool,
 }
 
 impl Default for TestExtBuilder {
 	fn default() -> Self {
-		Self {
-			epoch_duration: TEST_BLOCKS_PER_EPOCH,
-			min_candidate_bond: 10,
-			min_delegate_amount: 10,
-			gensis_candidates: DEFAULT_ACTIVE_SET.to_vec(),
-			delay_deregister_candidate_duration: TEST_BLOCKS_PER_EPOCH,
-			delay_reward_payout_sent: TEST_BLOCKS_PER_EPOCH,
-			delay_undelegate_candidate: TEST_BLOCKS_PER_EPOCH,
-			validator_commission: 3,
-			delegator_commission: 1,
-			reward_distribution_disabled: false,
-		}
+		Self { gensis_candidates: DEFAULT_ACTIVE_SET.to_vec(), reward_distribution_disabled: false }
 	}
 }
 
@@ -182,12 +176,12 @@ impl Default for TestExtBuilder {
 impl TestExtBuilder {
 	#[allow(dead_code)]
 	pub fn epoch_duration(&mut self, epoch_duration: BlockNumberFor<Test>) -> &mut Self {
-		self.epoch_duration = epoch_duration;
+		EpochDuration::set(epoch_duration);
 		self
 	}
 
 	pub fn min_candidate_bond(&mut self, min_candidate_bond: BalanceOf<Test>) -> &mut Self {
-		self.min_candidate_bond = min_candidate_bond;
+		MinCandidateBond::set(min_candidate_bond);
 		self
 	}
 
@@ -196,13 +190,28 @@ impl TestExtBuilder {
 		self
 	}
 
+	pub fn max_candidates(&mut self, max_candidates: u32) -> &mut Self {
+		MaxCandidates::set(max_candidates);
+		self
+	}
+
 	pub fn min_delegate_amount(&mut self, min_delegate_amount: BalanceOf<Test>) -> &mut Self {
-		self.min_delegate_amount = min_delegate_amount;
+		MinDelegateAmount::set(min_delegate_amount);
+		self
+	}
+
+	pub fn max_candidate_delegators(&mut self, max_candidate_delegators: u32) -> &mut Self {
+		MaxCandidateDelegators::set(max_candidate_delegators);
+		self
+	}
+
+	pub fn max_delegate_count(&mut self, max_delegate_count: u32) -> &mut Self {
+		MaxDelegateCount::set(max_delegate_count);
 		self
 	}
 
 	pub fn validator_commission(&mut self, validator_commission: u8) -> &mut Self {
-		self.validator_commission = validator_commission;
+		ValidatorCommission::set(validator_commission);
 		self
 	}
 
@@ -212,7 +221,7 @@ impl TestExtBuilder {
 	}
 
 	pub fn delegator_commission(&mut self, delegator_commission: u8) -> &mut Self {
-		self.delegator_commission = delegator_commission;
+		DelegatorCommission::set(delegator_commission);
 		self
 	}
 
@@ -220,12 +229,12 @@ impl TestExtBuilder {
 		&mut self,
 		duration: BlockNumberFor<Test>,
 	) -> &mut Self {
-		self.delay_deregister_candidate_duration = duration;
+		DelayDeregisterCandidateDuration::set(duration);
 		self
 	}
 
 	pub fn delay_undelegate_candidate(&mut self, duration: BlockNumberFor<Test>) -> &mut Self {
-		self.delay_reward_payout_sent = duration;
+		DelayUndelegateCandidate::set(duration);
 		self
 	}
 
@@ -263,14 +272,7 @@ impl TestExtBuilder {
 		.assimilate_storage(&mut storage);
 
 		let _ = pallet_dpos::GenesisConfig::<Test> {
-			epoch_duration: self.epoch_duration,
-			min_candidate_bond: self.min_candidate_bond,
-			min_delegate_amount: self.min_delegate_amount,
 			genesis_candidates: self.gensis_candidates.clone(),
-			delegator_commission: self.delegator_commission,
-			validator_commission: self.validator_commission,
-			delay_deregister_candidate_duration: self.delay_deregister_candidate_duration,
-			delay_undelegate_candidate: self.delay_undelegate_candidate,
 		}
 		.assimilate_storage(&mut storage);
 		sp_io::TestExternalities::from(storage)

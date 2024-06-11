@@ -56,6 +56,13 @@ impl<T: Config> CandidateDetail<T> {
 	pub fn total(&self) -> BalanceOf<T> {
 		self.total_delegations.defensive_saturating_add(self.bond)
 	}
+
+	pub fn toggle_status(&mut self) {
+		self.status = match self.status {
+			ValidatorStatus::Online => ValidatorStatus::Offline,
+			ValidatorStatus::Offline => ValidatorStatus::Online,
+		}
+	}
 }
 
 #[allow(type_alias_bounds)]

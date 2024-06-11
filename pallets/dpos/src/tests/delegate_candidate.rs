@@ -41,6 +41,7 @@ fn should_fail_delegate_too_many_candidates() {
 	ext.genesis_candidates(vec![])
 		.min_candidate_bond(5)
 		.min_delegate_amount(90)
+		.max_delegate_count(5)
 		.build()
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_1.id), 5));
@@ -445,8 +446,8 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_3.id,
 				amount: delegated_amount_3,
-				total_delegated_amount: delegated_amount_1
-					+ delegated_amount_2 + delegated_amount_3,
+				total_delegated_amount: delegated_amount_1 +
+					delegated_amount_2 + delegated_amount_3,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 3);
@@ -477,26 +478,21 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_1.id,
 				amount: delegated_amount_1,
-				total_delegated_amount: delegated_amount_1
-					+ delegated_amount_2 + delegated_amount_3
-					+ delegated_amount_1,
+				total_delegated_amount: delegated_amount_1 +
+					delegated_amount_2 + delegated_amount_3 +
+					delegated_amount_1,
 			}));
 
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail {
 					bond: 40,
-					total_delegations: delegated_amount_3
-						+ delegated_amount_1 + delegated_amount_2
-						+ delegated_amount_1,
+					total_delegations: delegated_amount_3 +
+						delegated_amount_1 + delegated_amount_2 +
+						delegated_amount_1,
 					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
 		});
-}
-
-#[test]
-fn should_ok_validator_delegate_other_validator() {
-	todo!("Validator can delegate other validator")
 }

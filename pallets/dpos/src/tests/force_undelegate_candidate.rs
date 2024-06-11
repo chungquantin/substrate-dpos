@@ -7,57 +7,66 @@ use types::{CandidateDetail, DelegationInfo};
 #[test]
 fn should_failed_no_candidate_found() {
 	let mut ext = TestExtBuilder::default();
-	ext.genesis_candidates(vec![]).build().execute_with(|| {
-		assert_noop!(
-			Dpos::force_undelegate_candidate(
-				RuntimeOrigin::root(),
-				ACCOUNT_3.id,
-				ACCOUNT_1.id,
-				100
-			),
-			Error::<Test>::CandidateDoesNotExist
-		);
-	});
+	ext.reward_distribution_disabled()
+		.genesis_candidates(vec![])
+		.build()
+		.execute_with(|| {
+			assert_noop!(
+				Dpos::force_undelegate_candidate(
+					RuntimeOrigin::root(),
+					ACCOUNT_3.id,
+					ACCOUNT_1.id,
+					100
+				),
+				Error::<Test>::CandidateDoesNotExist
+			);
+		});
 }
 
 #[test]
 fn should_failed_no_candidate_delegation_found() {
 	let mut ext = TestExtBuilder::default();
-	ext.genesis_candidates(vec![DEFAULT_ACTIVE_SET[0]]).build().execute_with(|| {
-		assert_noop!(
-			Dpos::force_undelegate_candidate(
-				RuntimeOrigin::root(),
-				ACCOUNT_3.id,
-				DEFAULT_ACTIVE_SET[0].0,
-				100
-			),
-			Error::<Test>::DelegationDoesNotExist
-		);
-	});
+	ext.reward_distribution_disabled()
+		.genesis_candidates(vec![DEFAULT_ACTIVE_SET[0]])
+		.build()
+		.execute_with(|| {
+			assert_noop!(
+				Dpos::force_undelegate_candidate(
+					RuntimeOrigin::root(),
+					ACCOUNT_3.id,
+					DEFAULT_ACTIVE_SET[0].0,
+					100
+				),
+				Error::<Test>::DelegationDoesNotExist
+			);
+		});
 }
 
 #[test]
 fn should_failed_deregister_funds_no_available() {
 	let mut ext = TestExtBuilder::default();
-	ext.min_delegate_amount(100).build().execute_with(|| {
-		MaxDelegateCount::set(100);
+	ext.reward_distribution_disabled()
+		.min_delegate_amount(100)
+		.build()
+		.execute_with(|| {
+			MaxDelegateCount::set(100);
 
-		ext.run_to_block(1010);
+			ext.run_to_block(1010);
 
-		let delegated_amount = 101;
-		let (candidate, _) = DEFAULT_ACTIVE_SET[0];
-		assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), candidate, delegated_amount));
+			let delegated_amount = 101;
+			let (candidate, _) = DEFAULT_ACTIVE_SET[0];
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), candidate, delegated_amount));
 
-		assert_noop!(
-			Dpos::force_undelegate_candidate(
-				RuntimeOrigin::root(),
-				ACCOUNT_6.id,
-				candidate,
-				delegated_amount - 1
-			),
-			Error::<Test>::BelowMinimumDelegateAmount
-		);
-	});
+			assert_noop!(
+				Dpos::force_undelegate_candidate(
+					RuntimeOrigin::root(),
+					ACCOUNT_6.id,
+					candidate,
+					delegated_amount - 1
+				),
+				Error::<Test>::BelowMinimumDelegateAmount
+			);
+		});
 }
 
 #[test]
@@ -65,6 +74,7 @@ fn should_failed_undelegate_over_amount() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
 	ext.genesis_candidates(vec![])
+		.reward_distribution_disabled()
 		.min_candidate_bond(20)
 		.min_delegate_amount(101)
 		.build()
@@ -101,6 +111,7 @@ fn should_ok_undelegate_all_amount() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
 	ext.genesis_candidates(vec![])
+		.reward_distribution_disabled()
 		.min_candidate_bond(20)
 		.min_delegate_amount(101)
 		.build()
@@ -145,6 +156,7 @@ fn should_ok_undelegate_partial_amount() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
 	ext.genesis_candidates(vec![])
+		.reward_distribution_disabled()
 		.min_candidate_bond(20)
 		.min_delegate_amount(101)
 		.build()
@@ -196,6 +208,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
 	ext.genesis_candidates(vec![])
+		.reward_distribution_disabled()
 		.min_candidate_bond(20)
 		.min_delegate_amount(101)
 		.build()

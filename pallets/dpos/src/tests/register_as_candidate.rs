@@ -23,6 +23,22 @@ fn should_failed_invalid_bond_amount() {
 }
 
 #[test]
+fn should_failed_too_many_candidates() {
+	let mut ext = TestExtBuilder::default();
+	ext.max_candidates(4).genesis_candidates(vec![]).build().execute_with(|| {
+		// Attemp to register as candidate without enough fund in the account
+		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_1.id), 500));
+		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_2.id), 500));
+		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_3.id), 500));
+		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_4.id), 500));
+		assert_noop!(
+			Dpos::register_as_candidate(ros(CANDIDATE_5.id), 500),
+			Error::<Test>::TooManyValidators
+		);
+	});
+}
+
+#[test]
 fn should_ok_register_single_sucessfully() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
