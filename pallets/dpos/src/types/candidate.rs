@@ -53,6 +53,10 @@ impl<T: Config> CandidateDetail<T> {
 		Ok(self.total_delegations)
 	}
 
+	pub fn update_bond(&mut self, bond: BalanceOf<T>) {
+		self.bond = bond;
+	}
+
 	pub fn total(&self) -> BalanceOf<T> {
 		self.total_delegations.defensive_saturating_add(self.bond)
 	}

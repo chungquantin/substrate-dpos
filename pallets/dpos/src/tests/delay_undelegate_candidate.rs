@@ -108,7 +108,7 @@ fn should_failed_undelegate_over_amount() {
 
 			assert_noop!(
 				Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id)),
-				Error::<Test>::InsufficientDelegatedAmount
+				Error::<Test>::BelowMinimumDelegateAmount
 			);
 		});
 }

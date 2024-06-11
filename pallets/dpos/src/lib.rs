@@ -18,6 +18,9 @@ mod constants;
 mod benchmarking;
 
 // TODO exclude the offline validator from the active set
+// TODO write test for canddiate_bond_more
+// TODO write test for candidate_bond_less
+// TODO add bond more method
 // TODO algorithm for reward distribution
 // TODO add simulation test for reward distribution
 // TODO add integrity testing
@@ -247,6 +250,14 @@ pub mod pallet {
 			candidate_id: T::AccountId,
 			initial_bond: BalanceOf<T>,
 		},
+		CandidateMoreBondStaked {
+			candidate_id: T::AccountId,
+			additional_bond: BalanceOf<T>,
+		},
+		CandidateLessBondStaked {
+			candidate_id: T::AccountId,
+			removal_bond: BalanceOf<T>,
+		},
 		CandidateRegistrationRemoved {
 			candidate_id: T::AccountId,
 		},
@@ -349,7 +360,6 @@ pub mod pallet {
 		DelegationDoesNotExist,
 		BelowMinimumDelegateAmount,
 		BelowMinimumCandidateBond,
-		InsufficientDelegatedAmount,
 		NoDelayActionRequestFound,
 		ActionIsStillInDelayDuration,
 		InvalidDelayActionPayload,
@@ -369,6 +379,80 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(1)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
+			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
+			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
+
+			let validator = ensure_signed(origin)?;
+
+			// Only hold the funds of a user which has no holds already.
+			ensure!(!Self::is_candidate(&validator), Error::<T>::CandidateAlreadyExist);
+
+			Self::register_as_candidate_inner(&validator, bond)?;
+
+			Self::deposit_event(Event::CandidateRegistered {
+				candidate_id: validator,
+				initial_bond: bond,
+			});
+			Ok(())
+		}
+
+		#[pallet::call_index(2)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn candidate_bond_more(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
+			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
+
+			let validator = ensure_signed(origin)?;
+
+			let mut candidate_detail = Self::get_candidate(&validator)?;
+			candidate_detail.bond = candidate_detail.bond.checked_add(&bond).expect("Overflow");
+			CandidatePool::<T>::set(&validator, Some(candidate_detail));
+
+			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
+
+			Self::deposit_event(Event::CandidateMoreBondStaked {
+				candidate_id: validator,
+				additional_bond: bond,
+			});
+			Ok(())
+		}
+
+		#[pallet::call_index(3)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn candidate_bond_less(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
+			let validator = ensure_signed(origin)?;
+
+			ensure!(Self::is_candidate(&validator), Error::<T>::CandidateDoesNotExist);
+
+			let mut candidate_detail = Self::get_candidate(&validator)?;
+			let new_candidate_bond = candidate_detail
+				.bond
+				.checked_sub(&bond)
+				.ok_or(Error::<T>::BelowMinimumCandidateBond)?;
+
+			if new_candidate_bond.is_zero() {
+				// If the candidate bond amount is removed completely, we want to remove
+				// deregister the validator from candidate pool
+				return Self::deregister_candidate_inner(validator);
+			}
+
+			// Reduce the total bond partially but make sure it is above the threshold
+			Self::check_candidate_bond(new_candidate_bond)?;
+
+			candidate_detail.update_bond(new_candidate_bond);
+			CandidatePool::<T>::set(&validator, Some(candidate_detail));
+
+			Self::release_candidate_bonds(&validator, bond)?;
+
+			Self::deposit_event(Event::CandidateLessBondStaked {
+				candidate_id: validator,
+				removal_bond: bond,
+			});
+			Ok(())
+		}
+
+		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn delegate_candidate(
 			origin: OriginFor<T>,
@@ -427,21 +511,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(2)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
-			let validator = ensure_signed(origin)?;
-
-			Self::register_as_candidate_inner(&validator, bond)?;
-
-			Self::deposit_event(Event::CandidateRegistered {
-				candidate_id: validator,
-				initial_bond: bond,
-			});
-			Ok(())
-		}
-
-		#[pallet::call_index(3)]
+		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn force_deregister_candidate(
 			origin: OriginFor<T>,
@@ -455,7 +525,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(4)]
+		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn force_undelegate_candidate(
 			origin: OriginFor<T>,
@@ -474,7 +544,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(5)]
+		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn delay_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let candidate = ensure_signed(origin)?;
@@ -499,7 +569,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(6)]
+		#[pallet::call_index(8)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn delay_undelegate_candidate(
 			origin: OriginFor<T>,
@@ -529,7 +599,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(7)]
+		#[pallet::call_index(9)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn execute_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
@@ -539,7 +609,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(8)]
+		#[pallet::call_index(10)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn cancel_deregister_candidate_request(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
@@ -550,7 +620,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(9)]
+		#[pallet::call_index(11)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn execute_undelegate_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
@@ -558,7 +628,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(10)]
+		#[pallet::call_index(12)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn cancel_undelegate_candidate_request(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
@@ -755,7 +825,8 @@ pub mod pallet {
 			CandidateDelegators::<T>::remove(&candidate);
 
 			// Releasing the hold bonds of the candidate
-			Self::release_candidate_bonds(&candidate)?;
+			let candidate_detail = Self::get_candidate(&candidate)?;
+			Self::release_candidate_bonds(&candidate, candidate_detail.bond)?;
 
 			// Removing any information related the registration of the candidate in the pool
 			CandidatePool::<T>::remove(&candidate);
@@ -776,7 +847,7 @@ pub mod pallet {
 			let new_delegated_amount = delegation_info
 				.amount
 				.checked_sub(&amount)
-				.ok_or(Error::<T>::InsufficientDelegatedAmount)?;
+				.ok_or(Error::<T>::BelowMinimumDelegateAmount)?;
 
 			if new_delegated_amount.is_zero() {
 				// If the delegated amount is removed completely, we want to remove
@@ -790,7 +861,7 @@ pub mod pallet {
 				delegation_info.update_delegated_amount(new_delegated_amount);
 				DelegationInfos::<T>::set(&delegator, &candidate, Some(delegation_info));
 			}
-			log::info!("delegator: {:?} - amount: {:?}", delegator, amount);
+
 			// Releasing the hold amount for the delegation betwene (delegator, candidate)
 			Self::release_delegated_amount(&delegator, &amount)?;
 
@@ -842,11 +913,6 @@ pub mod pallet {
 			validator: &T::AccountId,
 			bond: BalanceOf<T>,
 		) -> DispatchResult {
-			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
-			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
-			// Only hold the funds of a user which has no holds already.
-			ensure!(!Self::is_candidate(validator), Error::<T>::CandidateAlreadyExist);
-
 			ensure!(
 				CandidatePool::<T>::count().saturating_add(1) <= T::MaxCandidates::get(),
 				Error::<T>::TooManyValidators
@@ -867,14 +933,20 @@ pub mod pallet {
 			Ok(())
 		}
 
+		fn check_candidate_bond(bond: BalanceOf<T>) -> DispatchResult {
+			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
+			Ok(())
+		}
+
 		/// Releasing the hold balance amount of candidate
-		pub fn release_candidate_bonds(candidate: &T::AccountId) -> DispatchResult {
-			let candidate_detail = CandidatePool::<T>::try_get(&candidate)
-				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+		pub fn release_candidate_bonds(
+			candidate: &T::AccountId,
+			bond: BalanceOf<T>,
+		) -> DispatchResult {
 			T::NativeBalance::release(
 				&HoldReason::CandidateBondReserved.into(),
 				&candidate,
-				candidate_detail.bond,
+				bond,
 				Precision::BestEffort,
 			)?;
 			Ok(())

@@ -496,3 +496,27 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			);
 		});
 }
+
+// Make sure that the pallet can support direct delegation
+#[test]
+fn should_ok_direct_delegation() {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(5)
+		.min_delegate_amount(90)
+		.max_delegate_count(5)
+		// This attribtue defines the direct delegation mode
+		.max_delegate_count(1)
+		.build()
+		.execute_with(|| {
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_1.id), 5));
+			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_2.id), 40));
+
+			// With direct delegation, we can't delegate more than one candidate
+			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_1.id, 200));
+			assert_noop!(
+				Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_2.id, 100),
+				Error::<Test>::TooManyCandidateDelegations
+			);
+		});
+}

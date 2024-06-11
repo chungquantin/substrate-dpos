@@ -101,7 +101,7 @@ fn should_failed_undelegate_over_amount() {
 					candidate.id,
 					300
 				),
-				Error::<Test>::InsufficientDelegatedAmount
+				Error::<Test>::BelowMinimumDelegateAmount
 			);
 		});
 }
