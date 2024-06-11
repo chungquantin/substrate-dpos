@@ -1,5 +1,8 @@
 use codec::{Decode, Encode, MaxEncodedLen};
-use frame_support::sp_runtime::traits::{CheckedAdd, CheckedSub};
+use frame_support::{
+	sp_runtime::traits::{CheckedAdd, CheckedSub},
+	traits::DefensiveSaturating,
+};
 use frame_system::pallet_prelude::BlockNumberFor;
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
@@ -31,6 +34,10 @@ impl<T: Config> CandidateDetail<T> {
 	) -> DispatchResultWithValue<BalanceOf<T>> {
 		self.total_delegations = self.total_delegations.checked_sub(&amount).expect("Overflow");
 		Ok(self.total_delegations)
+	}
+
+	pub fn total(&self) -> BalanceOf<T> {
+		self.total_delegations.defensive_saturating_add(self.bond)
 	}
 }
 

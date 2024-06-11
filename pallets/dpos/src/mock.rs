@@ -111,7 +111,16 @@ impl FindAuthor<AccountId> for DynamicAuthor {
 	where
 		I: 'a + IntoIterator<Item = ([u8; 4], &'a [u8])>,
 	{
-		Some(Author::get())
+		let current_active_validators = Dpos::active_validators();
+		let active_validator_ids =
+			current_active_validators.iter().map(|(id, _)| *id).collect::<Vec<AccountId>>();
+
+		if active_validator_ids.len() == 0 {
+			return None;
+		}
+		active_validator_ids
+			.get((System::block_number() % (active_validator_ids.len() as u64)) as usize)
+			.cloned()
 	}
 }
 
@@ -149,6 +158,7 @@ pub struct TestExtBuilder {
 	delay_undelegate_candidate: BlockNumberFor<Test>,
 	validator_commission: u8,
 	delegator_commission: u8,
+	reward_distribution_disabled: bool,
 }
 
 impl Default for TestExtBuilder {
@@ -163,10 +173,12 @@ impl Default for TestExtBuilder {
 			delay_undelegate_candidate: TEST_BLOCKS_PER_EPOCH,
 			validator_commission: 3,
 			delegator_commission: 1,
+			reward_distribution_disabled: false,
 		}
 	}
 }
 
+#[allow(dead_code)]
 impl TestExtBuilder {
 	#[allow(dead_code)]
 	pub fn epoch_duration(&mut self, epoch_duration: BlockNumberFor<Test>) -> &mut Self {
@@ -179,7 +191,6 @@ impl TestExtBuilder {
 		self
 	}
 
-	#[allow(dead_code)]
 	pub fn genesis_candidates(&mut self, candidates: CandidatePool<Test>) -> &mut Self {
 		self.gensis_candidates = candidates;
 		self
@@ -190,19 +201,21 @@ impl TestExtBuilder {
 		self
 	}
 
-	#[allow(dead_code)]
 	pub fn validator_commission(&mut self, validator_commission: u8) -> &mut Self {
 		self.validator_commission = validator_commission;
 		self
 	}
 
-	#[allow(dead_code)]
+	pub fn reward_distribution_disabled(&mut self) -> &mut Self {
+		self.reward_distribution_disabled = true;
+		self
+	}
+
 	pub fn delegator_commission(&mut self, delegator_commission: u8) -> &mut Self {
 		self.delegator_commission = delegator_commission;
 		self
 	}
 
-	#[allow(dead_code)]
 	pub fn delay_deregister_candidate_duration(
 		&mut self,
 		duration: BlockNumberFor<Test>,
@@ -211,7 +224,6 @@ impl TestExtBuilder {
 		self
 	}
 
-	#[allow(dead_code)]
 	pub fn delay_undelegate_candidate(&mut self, duration: BlockNumberFor<Test>) -> &mut Self {
 		self.delay_reward_payout_sent = duration;
 		self
@@ -272,27 +284,32 @@ impl TestExtBuilder {
 		ext
 	}
 
-	pub fn next_block() {
+	pub fn next_block(&self) {
 		System::set_block_number(System::block_number() + 1);
-		System::on_initialize(System::block_number());
-		Dpos::on_initialize(System::block_number());
+		if !self.reward_distribution_disabled {
+			System::on_initialize(System::block_number());
+			Dpos::on_initialize(System::block_number());
+		}
 	}
 
-	pub fn run_to_block(n: BlockNumberFor<Test>) {
+	pub fn run_to_block(&self, n: BlockNumberFor<Test>) {
 		while System::block_number() < n {
 			if System::block_number() > 1 {
-				Dpos::on_finalize(System::block_number());
-				System::on_finalize(System::block_number());
+				if !self.reward_distribution_disabled {
+					Dpos::on_finalize(System::block_number());
+					System::on_finalize(System::block_number());
+				}
 			}
-			TestExtBuilder::next_block();
+			self.next_block();
 		}
 	}
 
 	pub fn run_to_block_from(
+		&self,
 		from: BlockNumberFor<Test>,
 		n: BlockNumberFor<Test>,
 	) -> BlockNumberFor<Test> {
-		Self::run_to_block(from + n);
+		self.run_to_block(from + n);
 		from + n
 	}
 }

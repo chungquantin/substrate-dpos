@@ -32,7 +32,7 @@ fn should_failed_undelegate_below_delegated_amount() {
 	ext.min_delegate_amount(100).build().execute_with(|| {
 		MaxDelegateCount::set(100);
 
-		TestExtBuilder::run_to_block(1010);
+		ext.run_to_block(1010);
 
 		let delegated_amount = 101;
 		let (candidate, _) = DEFAULT_ACTIVE_SET[0];
@@ -54,7 +54,7 @@ fn should_failed_undelegate_below_delegated_amount() {
 			}]
 		);
 
-		TestExtBuilder::run_to_block_from(1010, TEST_BLOCKS_PER_EPOCH * 2);
+		ext.run_to_block_from(1010, TEST_BLOCKS_PER_EPOCH * 2);
 
 		assert_noop!(
 			Dpos::execute_undelegate_candidate(ros(ACCOUNT_6.id), 0),
@@ -79,7 +79,7 @@ fn should_failed_undelegate_over_amount() {
 			);
 			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 
@@ -98,7 +98,7 @@ fn should_failed_undelegate_over_amount() {
 				}]
 			);
 
-			TestExtBuilder::run_to_block_from(5, TEST_BLOCKS_PER_EPOCH * 2);
+			ext.run_to_block_from(5, TEST_BLOCKS_PER_EPOCH * 2);
 
 			assert_noop!(
 				Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id), 0),
@@ -122,7 +122,7 @@ fn should_ok_undelegate_all_amount() {
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 
@@ -141,7 +141,7 @@ fn should_ok_undelegate_all_amount() {
 				}]
 			);
 
-			TestExtBuilder::run_to_block_from(5, TEST_BLOCKS_PER_EPOCH * 2);
+			ext.run_to_block_from(5, TEST_BLOCKS_PER_EPOCH * 2);
 
 			assert_ok!(Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id), 0),);
 
@@ -171,11 +171,11 @@ fn should_ok_undelegate_partial_amount() {
 			);
 			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 
-			TestExtBuilder::run_to_block(10);
+			ext.run_to_block(10);
 
 			assert_ok!(Dpos::delay_undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 75),);
 
@@ -192,7 +192,7 @@ fn should_ok_undelegate_partial_amount() {
 				}]
 			);
 
-			TestExtBuilder::run_to_block_from(15, TEST_BLOCKS_PER_EPOCH * 2);
+			ext.run_to_block_from(15, TEST_BLOCKS_PER_EPOCH * 2);
 
 			assert_ok!(Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id), 0));
 

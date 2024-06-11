@@ -91,7 +91,7 @@ fn should_ok_delegate_candidate_successfully() {
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
@@ -131,7 +131,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			let (delegated_amount_1, delegated_amount_2) = (200, 100);
 			// Delegate the first time
@@ -158,7 +158,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 				total_delegated_amount: 200,
 			}));
 
-			TestExtBuilder::run_to_block(10);
+			ext.run_to_block(10);
 
 			// Delegate the second time
 			let sum_delegated_amount = delegated_amount_1 + delegated_amount_2;
@@ -200,7 +200,8 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 fn should_ok_one_delegator_multiple_candidates_successfully() {
 	use frame_support::traits::fungible::InspectHold;
 	let mut ext = TestExtBuilder::default();
-	ext.genesis_candidates(vec![])
+	ext.reward_distribution_disabled()
+		.genesis_candidates(vec![])
 		.min_candidate_bond(20)
 		.min_delegate_amount(50)
 		.build()
@@ -214,7 +215,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			// Delegate the first time
 			assert_ok!(Dpos::delegate_candidate(
@@ -240,7 +241,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				total_delegated_amount: delegated_amount_1,
 			}));
 
-			TestExtBuilder::run_to_block(10);
+			ext.run_to_block(10);
 
 			// Delegate candidate 2
 			assert_ok!(Dpos::register_as_candidate(ros(candidate_2.id), 70));
@@ -279,7 +280,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				})
 			);
 
-			TestExtBuilder::run_to_block(100);
+			ext.run_to_block(100);
 
 			// Delegate candidate 3
 			assert_ok!(Dpos::register_as_candidate(ros(candidate_3.id), 70));
@@ -327,7 +328,8 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 #[test]
 fn should_ok_multiple_delegators_one_candidate_successfully() {
 	let mut ext = TestExtBuilder::default();
-	ext.genesis_candidates(vec![])
+	ext.reward_distribution_disabled()
+		.genesis_candidates(vec![])
 		.min_candidate_bond(20)
 		.min_delegate_amount(50)
 		.build()
@@ -338,7 +340,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			// Frst delegator
 			assert_ok!(Dpos::delegate_candidate(
@@ -366,7 +368,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 1);
-			TestExtBuilder::run_to_block(10);
+			ext.run_to_block(10);
 
 			// Second delegator
 			assert_ok!(Dpos::delegate_candidate(
@@ -397,7 +399,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 2);
-			TestExtBuilder::run_to_block(20);
+			ext.run_to_block(20);
 
 			// Third delegator
 			assert_ok!(Dpos::delegate_candidate(
@@ -429,7 +431,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				CandidateDelegators::<Test>::get(candidate.id),
 				vec![delegator_1.id, delegator_2.id, delegator_3.id]
 			);
-			TestExtBuilder::run_to_block(100);
+			ext.run_to_block(100);
 
 			// First delegator again
 			assert_ok!(Dpos::delegate_candidate(
@@ -468,4 +470,9 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				})
 			);
 		});
+}
+
+#[test]
+fn should_ok_validator_delegate_other_validator() {
+	todo!("Validator can delegate other validator")
 }

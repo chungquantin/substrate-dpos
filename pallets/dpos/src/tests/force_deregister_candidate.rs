@@ -34,7 +34,7 @@ fn should_ok_deregister_sucessfully() {
 		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
 		let hold_amount = 15;
 
-		TestExtBuilder::run_to_block(10);
+		ext.run_to_block(10);
 		// Register first
 		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
 
@@ -98,7 +98,8 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 #[test]
 fn should_ok_deregister_with_delegations_sucessfully() {
 	let mut ext = TestExtBuilder::default();
-	ext.genesis_candidates(vec![])
+	ext.reward_distribution_disabled()
+		.genesis_candidates(vec![])
 		.min_candidate_bond(20)
 		.min_delegate_amount(50)
 		.build()
@@ -113,7 +114,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			// Frst delegator
 			assert_ok!(Dpos::delegate_candidate(
@@ -122,7 +123,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				delegated_amount_1
 			));
 
-			TestExtBuilder::run_to_block(10);
+			ext.run_to_block(10);
 
 			// Second delegator
 			assert_ok!(Dpos::delegate_candidate(
@@ -131,7 +132,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				delegated_amount_2
 			));
 
-			TestExtBuilder::run_to_block(20);
+			ext.run_to_block(20);
 
 			// Third delegator
 			assert_ok!(Dpos::delegate_candidate(
@@ -142,7 +143,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 3);
 
-			TestExtBuilder::run_to_block(100);
+			ext.run_to_block(100);
 
 			// First delegator again
 			assert_ok!(Dpos::delegate_candidate(
@@ -163,7 +164,10 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(delegator_1.id), 0);
 
 			assert_eq!(Balances::free_balance(candidate.id), candidate.balance);
-			assert_eq!(Balances::total_balance_on_hold(&candidate.id), 0);
+			assert_eq!(
+				Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate.id),
+				0
+			);
 		});
 }
 
@@ -173,7 +177,7 @@ fn should_ok_deregister_all_candidates_sucessfully() {
 	ext.min_delegate_amount(100).build().execute_with(|| {
 		MaxDelegateCount::set(100);
 
-		TestExtBuilder::run_to_block(1010);
+		ext.run_to_block(1010);
 
 		let delegated_amount = 101;
 		for (indx, (candidate, _)) in DEFAULT_ACTIVE_SET.clone().into_iter().enumerate() {
@@ -188,7 +192,10 @@ fn should_ok_deregister_all_candidates_sucessfully() {
 				ACCOUNT_6.balance - delegated_amount * (indx + 1) as u128
 			);
 			assert_eq!(
-				Balances::total_balance_on_hold(&ACCOUNT_6.id),
+				Balances::balance_on_hold(
+					&HoldReason::DelegateAmountReserved.into(),
+					&ACCOUNT_6.id
+				),
 				delegated_amount * (indx + 1) as u128
 			);
 		}
@@ -217,7 +224,13 @@ fn should_ok_deregister_all_candidates_sucessfully() {
 				Balances::free_balance(ACCOUNT_6.id),
 				ACCOUNT_6.balance - total_delegated_amount
 			);
-			assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_6.id), total_delegated_amount);
+			assert_eq!(
+				Balances::balance_on_hold(
+					&HoldReason::DelegateAmountReserved.into(),
+					&ACCOUNT_6.id
+				),
+				total_delegated_amount
+			);
 		}
 	});
 }

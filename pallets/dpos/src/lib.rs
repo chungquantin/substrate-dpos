@@ -17,6 +17,17 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+// TODO switch status of the validator and delegator to offline if they request a delay action
+// TODO fix genesis_config build test error
+// TODO algorithm for reward distribution
+// TODO add simulation test for reward distribution
+// TODO reconfirm how to implement the find_author
+// TODO add integrity testing
+// TODO add documentation
+// TODO integrate with pallet_session
+// TODO optional: consider adding bags list
+// TODO migration: changing the storage struct type to be cleaner
+// TODO fork Polkadot staking dashboard and build the UI
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::{types::*, weights::WeightInfo};
@@ -27,7 +38,7 @@ pub mod pallet {
 		traits::{
 			fungible::{self, Mutate, MutateHold},
 			tokens::Precision,
-			DefensiveSaturating, FindAuthor,
+			FindAuthor,
 		},
 		Twox64Concat,
 	};
@@ -62,18 +73,23 @@ pub mod pallet {
 			+ fungible::freeze::Mutate<Self::AccountId>;
 
 		/// The maximum number of authorities that the pallet can hold.
+		/// Candidate pool is bounded using this value
 		#[pallet::constant]
 		type MaxCandidates: Get<u32>;
 
 		/// The maximum number of delegators that the candidate can have
+		/// TODO consider removing later
 		#[pallet::constant]
 		type MaxCandidateDelegators: Get<u32>;
 
 		/// The maximum number of candidates in the active validator set
+		/// The parameter is used for selecting top N validators from the candidate pool
 		#[pallet::constant]
 		type MaxActiveValidators: Get<u32>;
 
-		/// The maximum number of candidates in the active validator set
+		/// The minimum number of candidates in the active validator set
+		/// If there lacks active validators, block production won't happen
+		/// until there is anough validators. This ensure the network stability
 		#[pallet::constant]
 		type MinActiveValidators: Get<u32>;
 
@@ -249,6 +265,9 @@ pub mod pallet {
 			MinDelegateAmount::<T>::put(self.min_delegate_amount);
 			EpochDuration::<T>::put(self.epoch_duration);
 
+			AuthorCommission::<T>::put(self.validator_commission);
+			DelegatorCommission::<T>::put(self.delegator_commission);
+
 			DelayDeregisterCandidateDuration::<T>::put(self.delay_deregister_candidate_duration);
 			DelayUndelegateCandidate::<T>::put(self.delay_deregister_candidate_duration);
 		}
@@ -292,6 +311,28 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		#[cfg(feature = "try-runtime")]
+		fn try_state(_: BlockNumberFOr<T>) -> Result<(), sp_runtime::TryRuntimeError> {
+			Self::do_try_state();
+		}
+
+		fn integrity_test() {
+			assert!(
+				T::MaxDelegateCount::get() != 0,
+				"Maximum number of delegation per validator can't be zero"
+			);
+
+			assert!(
+				T::MaxActiveValidators::get() != 0,
+				"Maximum number of active validators can't be zero"
+			);
+
+			assert!(
+				T::MinActiveValidators::get() > T::MaxActiveValidators::get(),
+				"Minimum number of validators must be lower than the maximum number of validators"
+			);
+		}
+
 		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
 			// This is a pretty lightweight check that we do EVERY block, but then tells us when an
 			// Epoch has passed...
@@ -307,25 +348,25 @@ pub mod pallet {
 						total_staked: *total_staked,
 					});
 				}
+
+				// Update a new set of active validators
+				CurrentActiveValidators::<T>::put(
+					BoundedVec::try_from(active_validator_set.to_vec())
+						.expect("Exceed limit number of the validators in the active set"),
+				);
 			}
 
 			if let Some(current_block_author) = Self::find_author() {
+				log::info!("{:?}", current_block_author);
 				let maybe_active_validator = active_validator_set
-					.to_vec()
 					.into_iter()
 					.find(|(validator, _)| validator == &current_block_author);
 
 				if let Some((active_validator, total_staked)) = maybe_active_validator {
-					let reward = Percent::from_percent(AuthorCommission::<T>::get())
-						.saturating_reciprocal_mul(total_staked);
-					let _ = T::NativeBalance::mint_into(&active_validator, reward);
+					Self::distribute_reward(active_validator, total_staked);
 				}
 			}
 
-			CurrentActiveValidators::<T>::put(
-				BoundedVec::try_from(active_validator_set)
-					.expect("Exceed limit number of the validators in the active set"),
-			);
 			// We return a default weight because we do not expect you to do weights for your
 			// project... Except for extra credit...
 			return Weight::default();
@@ -583,6 +624,13 @@ pub mod pallet {
 		}
 	}
 
+	#[cfg(any(test, feature = "try-state"))]
+	impl<T: Config> Pallet<T> {
+		fn do_try_state() {
+			unimplemented!()
+		}
+	}
+
 	impl<T: Config> Pallet<T> {
 		pub(crate) fn select_active_validator_set() -> ActiveValidatorSet<T> {
 			let total_in_active_set = T::MaxActiveValidators::get();
@@ -604,11 +652,7 @@ pub mod pallet {
 
 		pub fn get_candidate_delegations() -> ActiveValidatorSet<T> {
 			CandidateDetailMap::<T>::iter()
-				.map(
-					|(candidate, CandidateDetail { bond, total_delegations, registered_at: _ })| {
-						(candidate, total_delegations.defensive_saturating_add(bond))
-					},
-				)
+				.map(|(candidate, candidate_detail)| (candidate, candidate_detail.total()))
 				.collect()
 		}
 
@@ -867,6 +911,27 @@ pub mod pallet {
 				Precision::BestEffort,
 			)?;
 			Ok(())
+		}
+
+		pub(crate) fn distribute_reward(
+			active_validator: T::AccountId,
+			total_staked: BalanceOf<T>,
+		) {
+			let _ = T::NativeBalance::mint_into(
+				&active_validator,
+				Self::calculate_reward(total_staked, AuthorCommission::<T>::get()),
+			);
+
+			let delegators = CandidateDelegators::<T>::get(&active_validator);
+			for delegator in delegators.iter() {
+				let delegator_reward =
+					Self::calculate_reward(total_staked, DelegatorCommission::<T>::get());
+				let _ = T::NativeBalance::mint_into(&delegator, delegator_reward);
+			}
+		}
+
+		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u8) -> BalanceOf<T> {
+			Percent::from_percent(percent) * total
 		}
 
 		// A function to get you an account id for the current block author.

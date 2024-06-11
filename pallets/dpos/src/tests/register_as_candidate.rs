@@ -41,6 +41,10 @@ fn should_ok_register_single_sucessfully() {
 
 		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
 		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &succes_acc),
+			hold_amount
+		);
 		// Assert that the correct event was deposited
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
 			candidate_id: 2,
@@ -105,15 +109,24 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 		assert_eq!(CandidateDetailMap::<Test>::count(), 3);
 
 		assert_eq!(Balances::free_balance(candidate_1), balance_1 - hold_amount);
-		assert_eq!(Balances::total_balance_on_hold(&candidate_1), hold_amount);
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate_1),
+			hold_amount
+		);
 		assert_eq!(CandidateDelegators::<Test>::get(&candidate_1), vec![]);
 
 		assert_eq!(Balances::free_balance(candidate_2), balance_2 - hold_amount);
-		assert_eq!(Balances::total_balance_on_hold(&candidate_2), hold_amount);
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate_2),
+			hold_amount
+		);
 		assert_eq!(CandidateDelegators::<Test>::get(&candidate_2), vec![]);
 
 		assert_eq!(Balances::free_balance(candidate_3), balance_3 - hold_amount);
-		assert_eq!(Balances::total_balance_on_hold(&candidate_3), hold_amount);
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate_3),
+			hold_amount
+		);
 		assert_eq!(CandidateDelegators::<Test>::get(&candidate_2), vec![]);
 	});
 }

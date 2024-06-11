@@ -42,7 +42,7 @@ fn should_failed_deregister_funds_no_available() {
 	ext.min_delegate_amount(100).build().execute_with(|| {
 		MaxDelegateCount::set(100);
 
-		TestExtBuilder::run_to_block(1010);
+		ext.run_to_block(1010);
 
 		let delegated_amount = 101;
 		let (candidate, _) = DEFAULT_ACTIVE_SET[0];
@@ -76,7 +76,7 @@ fn should_failed_undelegate_over_amount() {
 			);
 			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 			assert_noop!(
@@ -106,7 +106,7 @@ fn should_ok_undelegate_all_amount() {
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 			assert_ok!(Dpos::force_undelegate_candidate(
@@ -141,11 +141,11 @@ fn should_ok_undelegate_partial_amount() {
 			);
 			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 
-			TestExtBuilder::run_to_block(10);
+			ext.run_to_block(10);
 
 			assert_ok!(Dpos::force_undelegate_candidate(
 				RuntimeOrigin::root(),
@@ -177,12 +177,12 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 
-			TestExtBuilder::run_to_block(5);
+			ext.run_to_block(5);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_5.id), candidate.id, 300));
 
-			TestExtBuilder::run_to_block(10);
+			ext.run_to_block(10);
 
 			// Undelegate ACCOUNT_4
 			assert_ok!(Dpos::force_undelegate_candidate(
