@@ -18,10 +18,8 @@ mod constants;
 mod benchmarking;
 
 // TODO exclude the offline validator from the active set
-// TODO fix genesis_config build test error
 // TODO algorithm for reward distribution
 // TODO add simulation test for reward distribution
-// TODO reconfirm how to implement the find_author
 // TODO add integrity testing
 // TODO add documentation
 // TODO integrate with pallet_session
@@ -408,11 +406,7 @@ pub mod pallet {
 					DelegateCountMap::<T>::set(&delegator, new_delegate_count);
 
 					// Add delegator to the candidate delegators vector
-					let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
-					candidate_delegators
-						.try_push(delegator.clone())
-						.map_err(|_| Error::<T>::TooManyDelegatorsInPool)?;
-					CandidateDelegators::<T>::set(&candidate, candidate_delegators);
+					Self::add_candidate_delegator(&candidate, &delegator)?;
 
 					// Initializing a new delegation info between (candidate, delegator)
 					let new_delegation_info = DelegationInfo::default(amount);
@@ -455,10 +449,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
 
-			ensure!(
-				CandidatePool::<T>::contains_key(&candidate),
-				Error::<T>::CandidateDoesNotExist
-			);
+			ensure!(Self::is_candidate(&candidate), Error::<T>::CandidateDoesNotExist);
 
 			Self::deregister_candidate_inner(candidate)?;
 			Ok(())
@@ -516,10 +507,7 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
 			let delegator = ensure_signed(origin)?;
-			ensure!(
-				CandidatePool::<T>::contains_key(&candidate),
-				Error::<T>::CandidateDoesNotExist
-			);
+			ensure!(Self::is_candidate(&candidate), Error::<T>::CandidateDoesNotExist);
 
 			ensure!(
 				!DelayActionRequests::<T>::contains_key(
@@ -599,8 +587,7 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T> {
 		pub(crate) fn toggle_candidate_status(candidate: &T::AccountId) -> DispatchResult {
-			let mut candidate_detail = CandidatePool::<T>::try_get(&candidate)
-				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+			let mut candidate_detail = Self::get_candidate(&candidate)?;
 			candidate_detail.toggle_status();
 			CandidatePool::<T>::set(&candidate, Some(candidate_detail));
 			Ok(())
@@ -643,8 +630,7 @@ pub mod pallet {
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
-			let mut candidate_detail = CandidatePool::<T>::try_get(&candidate)
-				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+			let mut candidate_detail = Self::get_candidate(&candidate)?;
 			let total_delegated_amount = candidate_detail.sub_delegated_amount(*amount)?;
 			CandidatePool::<T>::set(&candidate, Some(candidate_detail));
 
@@ -655,8 +641,7 @@ pub mod pallet {
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
-			let mut candidate_detail = CandidatePool::<T>::try_get(&candidate)
-				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
+			let mut candidate_detail = Self::get_candidate(&candidate)?;
 			let total_delegated_amount = candidate_detail.add_delegated_amount(*amount)?;
 			CandidatePool::<T>::set(&candidate, Some(candidate_detail));
 
@@ -708,33 +693,28 @@ pub mod pallet {
 			action_type: DelayActionType,
 		) -> DispatchResult {
 			let now = frame_system::Pallet::<T>::block_number();
-			match DelayActionRequests::<T>::get(&request_by, &action_type) {
-				Some(request) => {
-					// Delay action is due, start executing the action
-					ensure!(
-						now.saturating_sub(request.created_at) >= request.delay_for,
-						Error::<T>::ActionIsStillInDelayDuration
-					);
+			let request = DelayActionRequests::<T>::get(&request_by, &action_type)
+				.ok_or(Error::<T>::NoDelayActionRequestFound)?;
+			// Delay action is due, start executing the action
+			ensure!(
+				now.saturating_sub(request.created_at) >= request.delay_for,
+				Error::<T>::ActionIsStillInDelayDuration
+			);
 
-					match action_type {
-						DelayActionType::CandidateLeaved => {
-							Self::deregister_candidate_inner(request_by.clone())?;
-						},
-						DelayActionType::CandidateUndelegated => match &request.target {
-							Some(candidate) => {
-								Self::undelegate_candidate_inner(
-									request_by.clone(),
-									candidate.clone(),
-									request.amount.unwrap_or_default(),
-								)?;
-							},
-							None => return Err(Error::<T>::InvalidDelayActionPayload.into()),
-						},
-					}
-					DelayActionRequests::<T>::set(&request_by, &action_type, None);
+			match action_type {
+				DelayActionType::CandidateLeaved => {
+					Self::deregister_candidate_inner(request_by.clone())?;
 				},
-				None => return Err(Error::<T>::NoDelayActionRequestFound.into()),
+				DelayActionType::CandidateUndelegated => {
+					let candidate = request.target.ok_or(Error::<T>::InvalidDelayActionPayload)?;
+					Self::undelegate_candidate_inner(
+						request_by.clone(),
+						candidate.clone(),
+						request.amount.unwrap_or_default(),
+					)?;
+				},
 			}
+			DelayActionRequests::<T>::set(&request_by, &action_type, None);
 
 			Ok(())
 		}
@@ -792,12 +772,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure!(amount > Zero::zero(), Error::<T>::InvalidAmount);
 
-			let mut delegation_info = DelegationInfos::<T>::try_get(&delegator, &candidate)
-				.map_err(|_| Error::<T>::DelegationDoesNotExist)?;
-			let new_delegated_amount = match delegation_info.amount.checked_sub(&amount) {
-				Some(value) => value,
-				None => return Err(Error::<T>::InsufficientDelegatedAmount.into()),
-			};
+			let mut delegation_info = Self::get_delegation(&delegator, &candidate)?;
+			let new_delegated_amount = delegation_info
+				.amount
+				.checked_sub(&amount)
+				.ok_or(Error::<T>::InsufficientDelegatedAmount)?;
 
 			if new_delegated_amount.is_zero() {
 				// If the delegated amount is removed completely, we want to remove
@@ -828,6 +807,37 @@ pub mod pallet {
 			Ok(())
 		}
 
+		pub fn add_candidate_delegator(
+			candidate: &T::AccountId,
+			delegator: &T::AccountId,
+		) -> DispatchResult {
+			let mut candidate_delegators = CandidateDelegators::<T>::get(&candidate);
+			candidate_delegators
+				.try_push(delegator.clone())
+				.map_err(|_| Error::<T>::TooManyDelegatorsInPool)?;
+			CandidateDelegators::<T>::set(&candidate, candidate_delegators);
+			Ok(())
+		}
+
+		pub fn get_delegation(
+			delegator: &T::AccountId,
+			candidate: &T::AccountId,
+		) -> DispatchResultWithValue<DelegationInfo<T>> {
+			Ok(DelegationInfos::<T>::try_get(&delegator, &candidate)
+				.map_err(|_| Error::<T>::DelegationDoesNotExist)?)
+		}
+
+		pub fn get_candidate(
+			candidate: &T::AccountId,
+		) -> DispatchResultWithValue<CandidateDetail<T>> {
+			Ok(CandidatePool::<T>::try_get(&candidate)
+				.map_err(|_| Error::<T>::CandidateDoesNotExist)?)
+		}
+
+		pub fn is_candidate(validator: &T::AccountId) -> bool {
+			CandidatePool::<T>::contains_key(&validator)
+		}
+
 		pub(crate) fn register_as_candidate_inner(
 			validator: &T::AccountId,
 			bond: BalanceOf<T>,
@@ -835,10 +845,7 @@ pub mod pallet {
 			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
 			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
 			// Only hold the funds of a user which has no holds already.
-			ensure!(
-				!CandidatePool::<T>::contains_key(&validator),
-				Error::<T>::CandidateAlreadyExist
-			);
+			ensure!(!Self::is_candidate(validator), Error::<T>::CandidateAlreadyExist);
 
 			ensure!(
 				CandidatePool::<T>::count().saturating_add(1) <= T::MaxCandidates::get(),
