@@ -45,4 +45,4 @@ impl<T: Config> CandidateDetail<T> {
 pub type ActiveValidatorSet<T: Config> = sp_std::vec::Vec<(T::AccountId, BalanceOf<T>)>;
 
 #[allow(type_alias_bounds)]
-pub type CandidatePool<T: Config> = sp_std::vec::Vec<(T::AccountId, BalanceOf<T>)>;
+pub type CandidateSet<T: Config> = sp_std::vec::Vec<(T::AccountId, BalanceOf<T>)>;

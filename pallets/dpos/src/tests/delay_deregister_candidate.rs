@@ -33,17 +33,17 @@ fn should_ok_delay_deregister_sucessfully() {
 		let last_block_height = ext.run_to_block_from(10, TEST_BLOCKS_PER_EPOCH * 2);
 
 		assert_eq!(
-			CandidateDetailMap::<Test>::get(succes_acc),
+			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail { bond: hold_amount, registered_at: 10, total_delegations: 0 })
 		);
 		assert_eq!(
 			DelayActionRequests::<Test>::get(succes_acc, DelayActionType::CandidateLeaved),
-			vec![DelayActionRequest {
+			Some(DelayActionRequest {
 				amount: None,
 				created_at: 10,
 				delay_for: Dpos::delay_deregister_candidate_duration(),
 				target: None
-			}]
+			})
 		);
 
 		// We go the few other blocks and try to execute it again
@@ -54,7 +54,7 @@ fn should_ok_delay_deregister_sucessfully() {
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
 			candidate_id: succes_acc,
 		}));
-		assert_eq!(CandidateDetailMap::<Test>::get(succes_acc), None);
+		assert_eq!(CandidatePool::<Test>::get(succes_acc), None);
 
 		assert_eq!(Balances::free_balance(succes_acc), bond);
 		assert_eq!(
@@ -81,12 +81,12 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
-					vec![DelayActionRequest {
+					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
 						delay_for: Dpos::delay_deregister_candidate_duration(),
 						target: None
-					}]
+					})
 				);
 
 				assert_ok!(Dpos::delegate_candidate(
@@ -121,9 +121,9 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 				System::assert_last_event(RuntimeEvent::Dpos(
 					Event::CandidateRegistrationRemoved { candidate_id: candidate },
 				));
-				assert_eq!(CandidateDetailMap::<Test>::get(candidate), None);
+				assert_eq!(CandidatePool::<Test>::get(candidate), None);
 				assert_eq!(
-					CandidateDetailMap::<Test>::count(),
+					CandidatePool::<Test>::count(),
 					(DEFAULT_ACTIVE_SET.len() - (indx + 1)) as u32
 				);
 				assert_eq!(CandidateDelegators::<Test>::get(candidate), vec![]);
@@ -166,12 +166,12 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 				assert_ok!(Dpos::delay_deregister_candidate(ros(candidate)));
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
-					vec![DelayActionRequest {
+					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
 						delay_for: Dpos::delay_deregister_candidate_duration(),
 						target: None
-					}]
+					})
 				);
 
 				assert_ok!(Dpos::delegate_candidate(
@@ -202,15 +202,15 @@ fn should_failed_delay_deregister_candidates_behinds_due_date() {
 					Error::<Test>::ActionIsStillInDelayDuration
 				);
 
-				assert_eq!(CandidateDetailMap::<Test>::count(), DEFAULT_ACTIVE_SET.len() as u32);
+				assert_eq!(CandidatePool::<Test>::count(), DEFAULT_ACTIVE_SET.len() as u32);
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
-					vec![DelayActionRequest {
+					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
 						delay_for: Dpos::delay_deregister_candidate_duration(),
 						target: None
-					}]
+					})
 				);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
@@ -250,12 +250,12 @@ fn should_ok_cancel_deregister_candidate_requests() {
 				assert_ok!(Dpos::delay_deregister_candidate(ros(candidate)));
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
-					vec![DelayActionRequest {
+					Some(DelayActionRequest {
 						amount: None,
 						created_at: 1010,
 						delay_for: Dpos::delay_deregister_candidate_duration(),
 						target: None
-					}]
+					})
 				);
 
 				assert_ok!(Dpos::delegate_candidate(
@@ -284,7 +284,7 @@ fn should_ok_cancel_deregister_candidate_requests() {
 				assert_ok!(Dpos::cancel_deregister_candidate_request(ros(candidate)));
 				assert_eq!(
 					DelayActionRequests::<Test>::get(candidate, DelayActionType::CandidateLeaved),
-					vec![]
+					None
 				);
 			}
 		});
@@ -304,7 +304,7 @@ fn should_failed_cancel_not_found_delay_action_request() {
 		// Register first
 		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
 		assert_eq!(
-			CandidateDetailMap::<Test>::get(succes_acc),
+			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail { bond: hold_amount, registered_at: 10, total_delegations: 0 })
 		);
 		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
@@ -321,17 +321,17 @@ fn should_failed_cancel_not_found_delay_action_request() {
 		ext.run_to_block(HALF_EPOCH);
 
 		assert_eq!(
-			CandidateDetailMap::<Test>::get(succes_acc),
+			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail { bond: hold_amount, registered_at: 10, total_delegations: 0 })
 		);
 		assert_eq!(
 			DelayActionRequests::<Test>::get(succes_acc, DelayActionType::CandidateLeaved),
-			vec![DelayActionRequest {
+			Some(DelayActionRequest {
 				amount: None,
 				created_at: 10,
 				delay_for: Dpos::delay_deregister_candidate_duration(),
 				target: None
-			}]
+			})
 		);
 
 		// We go the few other blocks and try to execute it again
@@ -342,4 +342,11 @@ fn should_failed_cancel_not_found_delay_action_request() {
 			Error::<Test>::NoDelayActionRequestFound
 		);
 	});
+}
+
+#[test]
+fn should_failed_deregister_while_in_delay_duration() {
+	todo!(
+		"Test should failed when trying to deregister while there is another delay action request"
+	);
 }

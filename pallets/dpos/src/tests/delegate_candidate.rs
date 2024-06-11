@@ -72,7 +72,7 @@ fn should_ok_get_invalid_candidate() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_2.id), 5));
 			assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_3.id), 40));
-			assert_eq!(CandidateDetailMap::<Test>::get(ACCOUNT_4.id), None);
+			assert_eq!(CandidatePool::<Test>::get(ACCOUNT_4.id), None);
 		});
 }
 
@@ -87,7 +87,7 @@ fn should_ok_delegate_candidate_successfully() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
@@ -110,7 +110,7 @@ fn should_ok_delegate_candidate_successfully() {
 			}));
 
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 200, registered_at: 1 })
 			);
 		});
@@ -127,7 +127,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
@@ -186,7 +186,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 			}));
 
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: sum_delegated_amount,
@@ -211,7 +211,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 
 			assert_ok!(Dpos::register_as_candidate(ros(candidate_1.id), 40));
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate_1.id),
+				CandidatePool::<Test>::get(candidate_1.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
@@ -272,7 +272,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			}));
 
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate_2.id),
+				CandidatePool::<Test>::get(candidate_2.id),
 				Some(CandidateDetail {
 					bond: 70,
 					total_delegations: delegated_amount_2,
@@ -315,7 +315,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			}));
 
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate_3.id),
+				CandidatePool::<Test>::get(candidate_3.id),
 				Some(CandidateDetail {
 					bond: 70,
 					total_delegations: delegated_amount_3,
@@ -460,7 +460,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			}));
 
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: delegated_amount_3 +

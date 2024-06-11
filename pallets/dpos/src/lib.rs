@@ -17,7 +17,7 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// TODO Does the algorithm start at block zero?
+// TODO Does the algorithm start at block zero? Don't have answer yet
 // TODO switch status of the validator and delegator to offline if they request a delay action
 // TODO fix genesis_config build test error
 // TODO algorithm for reward distribution
@@ -79,7 +79,6 @@ pub mod pallet {
 		type MaxCandidates: Get<u32>;
 
 		/// The maximum number of delegators that the candidate can have
-		/// TODO consider removing later
 		#[pallet::constant]
 		type MaxCandidateDelegators: Get<u32>;
 
@@ -148,7 +147,7 @@ pub mod pallet {
 	/// Mapping the validator ID with the reigstered candidate detail
 	#[pallet::storage]
 	#[pallet::getter(fn candidates)]
-	pub type CandidateDetailMap<T: Config> =
+	pub type CandidatePool<T: Config> =
 		CountedStorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
 
 	#[pallet::storage]
@@ -204,12 +203,6 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
-	#[warn(type_alias_bounds)]
-	type BoundedDelayActionRequestList<T> = BoundedVec<
-		DelayActionRequest<T>,
-		AddGet<<T as Config>::MaxCandidates, <T as Config>::MaxDelegateCount>,
-	>;
-
 	/// Store the requests for delay actions (Format: delay_xxxxx())
 	#[pallet::storage]
 	pub type DelayActionRequests<T: Config> = StorageDoubleMap<
@@ -218,14 +211,14 @@ pub mod pallet {
 		T::AccountId,
 		Twox64Concat,
 		DelayActionType,
-		BoundedDelayActionRequestList<T>,
-		ValueQuery,
+		DelayActionRequest<T>,
+		OptionQuery,
 	>;
 
 	#[pallet::genesis_config]
 	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
-		pub genesis_candidates: CandidatePool<T>,
+		pub genesis_candidates: CandidateSet<T>,
 		pub min_candidate_bond: BalanceOf<T>,
 		pub min_delegate_amount: BalanceOf<T>,
 		pub validator_commission: u8,
@@ -271,6 +264,11 @@ pub mod pallet {
 
 			DelayDeregisterCandidateDuration::<T>::put(self.delay_deregister_candidate_duration);
 			DelayUndelegateCandidate::<T>::put(self.delay_deregister_candidate_duration);
+
+			CurrentActiveValidators::<T>::put(
+				BoundedVec::try_from(Pallet::<T>::select_active_validator_set().to_vec())
+					.expect("Exceed limit number of the validators in the active set"),
+			);
 		}
 	}
 
@@ -474,7 +472,7 @@ pub mod pallet {
 			ensure!(bond >= MinCandidateBond::<T>::get(), Error::<T>::BelowMinimumCandidateBond);
 			// Only hold the funds of a user which has no holds already.
 			ensure!(
-				!CandidateDetailMap::<T>::contains_key(&validator),
+				!CandidatePool::<T>::contains_key(&validator),
 				Error::<T>::CandidateAlreadyExist
 			);
 
@@ -496,7 +494,7 @@ pub mod pallet {
 			T::ForceOrigin::ensure_origin(origin)?;
 
 			ensure!(
-				CandidateDetailMap::<T>::contains_key(&candidate),
+				CandidatePool::<T>::contains_key(&candidate),
 				Error::<T>::CandidateDoesNotExist
 			);
 
@@ -515,7 +513,7 @@ pub mod pallet {
 			T::ForceOrigin::ensure_origin(origin)?;
 
 			ensure!(
-				CandidateDetailMap::<T>::contains_key(&candidate),
+				CandidatePool::<T>::contains_key(&candidate),
 				Error::<T>::CandidateDoesNotExist
 			);
 
@@ -528,7 +526,7 @@ pub mod pallet {
 		pub fn delay_deregister_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let candidate = ensure_signed(origin)?;
 			ensure!(
-				CandidateDetailMap::<T>::contains_key(&candidate),
+				CandidatePool::<T>::contains_key(&candidate),
 				Error::<T>::CandidateDoesNotExist
 			);
 			Self::create_delay_action_request(
@@ -549,7 +547,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let delegator = ensure_signed(origin)?;
 			ensure!(
-				CandidateDetailMap::<T>::contains_key(&candidate),
+				CandidatePool::<T>::contains_key(&candidate),
 				Error::<T>::CandidateDoesNotExist
 			);
 
@@ -571,7 +569,7 @@ pub mod pallet {
 			let executor = ensure_signed(origin)?;
 			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
 			// time
-			Self::execute_delay_action_inner(executor, DelayActionType::CandidateLeaved, 0)?;
+			Self::execute_delay_action_inner(executor, DelayActionType::CandidateLeaved)?;
 			Ok(())
 		}
 
@@ -581,34 +579,23 @@ pub mod pallet {
 			let executor = ensure_signed(origin)?;
 			// Default index of the deregister_candidate is 0 because we only allow 1 request at a
 			// time
-			Self::cancel_action_request_inner(executor, DelayActionType::CandidateLeaved, 0)?;
+			Self::cancel_action_request_inner(executor, DelayActionType::CandidateLeaved)?;
 			Ok(())
 		}
 
 		#[pallet::call_index(9)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn execute_undelegate_candidate(origin: OriginFor<T>, indx: u32) -> DispatchResult {
+		pub fn execute_undelegate_candidate(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
-			Self::execute_delay_action_inner(
-				executor,
-				DelayActionType::CandidateUndelegated,
-				indx,
-			)?;
+			Self::execute_delay_action_inner(executor, DelayActionType::CandidateUndelegated)?;
 			Ok(())
 		}
 
 		#[pallet::call_index(10)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
-		pub fn cancel_undelegate_candidate_request(
-			origin: OriginFor<T>,
-			indx: u32,
-		) -> DispatchResult {
+		pub fn cancel_undelegate_candidate_request(origin: OriginFor<T>) -> DispatchResult {
 			let executor = ensure_signed(origin)?;
-			Self::cancel_action_request_inner(
-				executor,
-				DelayActionType::CandidateUndelegated,
-				indx,
-			)?;
+			Self::cancel_action_request_inner(executor, DelayActionType::CandidateUndelegated)?;
 			Ok(())
 		}
 
@@ -634,7 +621,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		pub(crate) fn select_active_validator_set() -> ActiveValidatorSet<T> {
 			let total_in_active_set = T::MaxActiveValidators::get();
-			if CandidateDetailMap::<T>::count() < total_in_active_set {
+			if CandidatePool::<T>::count() < total_in_active_set {
 				// If the number of candidates does not reached the threshold, return all
 				return Self::get_candidate_delegations();
 			}
@@ -651,7 +638,7 @@ pub mod pallet {
 		}
 
 		pub fn get_candidate_delegations() -> ActiveValidatorSet<T> {
-			CandidateDetailMap::<T>::iter()
+			CandidatePool::<T>::iter()
 				.map(|(candidate, candidate_detail)| (candidate, candidate_detail.total()))
 				.collect()
 		}
@@ -669,10 +656,10 @@ pub mod pallet {
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
-			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
+			let mut candidate_detail = CandidatePool::<T>::try_get(&candidate)
 				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
 			let total_delegated_amount = candidate_detail.sub_delegated_amount(*amount)?;
-			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
+			CandidatePool::<T>::set(&candidate, Some(candidate_detail));
 
 			Ok(total_delegated_amount)
 		}
@@ -681,10 +668,10 @@ pub mod pallet {
 			candidate: &T::AccountId,
 			amount: &BalanceOf<T>,
 		) -> DispatchResultWithValue<BalanceOf<T>> {
-			let mut candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
+			let mut candidate_detail = CandidatePool::<T>::try_get(&candidate)
 				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
 			let total_delegated_amount = candidate_detail.add_delegated_amount(*amount)?;
-			CandidateDetailMap::<T>::set(&candidate, Some(candidate_detail));
+			CandidatePool::<T>::set(&candidate, Some(candidate_detail));
 
 			Ok(total_delegated_amount)
 		}
@@ -719,13 +706,10 @@ pub mod pallet {
 		fn cancel_action_request_inner(
 			request_by: T::AccountId,
 			action_type: DelayActionType,
-			indx: u32,
 		) -> DispatchResult {
-			let mut delay_requests = DelayActionRequests::<T>::get(&request_by, &action_type);
-			match delay_requests.get(indx as usize) {
+			match DelayActionRequests::<T>::get(&request_by, &action_type) {
 				Some(_) => {
-					delay_requests.remove(indx as usize);
-					DelayActionRequests::<T>::set(&request_by, &action_type, delay_requests);
+					DelayActionRequests::<T>::set(&request_by, &action_type, None);
 				},
 				None => return Err(Error::<T>::NoDelayActionRequestFound.into()),
 			}
@@ -735,11 +719,9 @@ pub mod pallet {
 		fn execute_delay_action_inner(
 			request_by: T::AccountId,
 			action_type: DelayActionType,
-			indx: u32,
 		) -> DispatchResult {
 			let now = frame_system::Pallet::<T>::block_number();
-			let mut delay_requests = DelayActionRequests::<T>::get(&request_by, &action_type);
-			match delay_requests.get(indx as usize) {
+			match DelayActionRequests::<T>::get(&request_by, &action_type) {
 				Some(request) => {
 					// Delay action is due, start executing the action
 					ensure!(
@@ -761,8 +743,7 @@ pub mod pallet {
 							None => return Err(Error::<T>::InvalidDelayActionPayload.into()),
 						},
 					}
-					delay_requests.remove(indx as usize);
-					DelayActionRequests::<T>::set(&request_by, &action_type, delay_requests);
+					DelayActionRequests::<T>::set(&request_by, &action_type, None);
 				},
 				None => return Err(Error::<T>::NoDelayActionRequestFound.into()),
 			}
@@ -776,17 +757,16 @@ pub mod pallet {
 			consumed_amount: Option<BalanceOf<T>>,
 			action_type: DelayActionType,
 		) -> DispatchResult {
-			let mut delay_requests = DelayActionRequests::<T>::get(&request_by, &action_type);
-			delay_requests
-				.try_push(DelayActionRequest {
+			DelayActionRequests::<T>::set(
+				&request_by,
+				&action_type,
+				Some(DelayActionRequest {
 					target,
 					created_at: frame_system::Pallet::<T>::block_number(),
 					delay_for: Self::get_delay_action_duration(&action_type),
 					amount: consumed_amount,
-				})
-				.map_err(|_| Error::<T>::TooManyValidators)?;
-			DelayActionRequests::<T>::set(&request_by, action_type, delay_requests);
-
+				}),
+			);
 			Ok(())
 		}
 
@@ -810,7 +790,7 @@ pub mod pallet {
 			Self::release_candidate_bonds(&candidate)?;
 
 			// Removing any information related the registration of the candidate in the pool
-			CandidateDetailMap::<T>::remove(&candidate);
+			CandidatePool::<T>::remove(&candidate);
 
 			Self::deposit_event(Event::CandidateRegistrationRemoved { candidate_id: candidate });
 
@@ -867,7 +847,7 @@ pub mod pallet {
 			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
 
 			// Store the amount held in our local storage.
-			CandidateDetailMap::<T>::insert(
+			CandidatePool::<T>::insert(
 				&validator,
 				CandidateDetail {
 					bond,
@@ -888,7 +868,7 @@ pub mod pallet {
 
 		/// Releasing the hold balance amount of candidate
 		pub fn release_candidate_bonds(candidate: &T::AccountId) -> DispatchResult {
-			let candidate_detail = CandidateDetailMap::<T>::try_get(&candidate)
+			let candidate_detail = CandidatePool::<T>::try_get(&candidate)
 				.map_err(|_| Error::<T>::CandidateDoesNotExist)?;
 			T::NativeBalance::release(
 				&HoldReason::CandidateBondReserved.into(),

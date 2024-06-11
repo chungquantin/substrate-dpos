@@ -1,7 +1,7 @@
 use crate::{
 	self as pallet_dpos,
 	constants::{AccountId, Balance, *},
-	types::CandidatePool,
+	types::CandidateSet,
 	BalanceOf, ReportNewValidatorSet,
 };
 use frame_support::{
@@ -40,7 +40,7 @@ parameter_types! {
 pub const REGISTRATION_HOLD_AMOUNT: u128 = 200;
 
 lazy_static! {
-	pub static ref DEFAULT_ACTIVE_SET: CandidatePool<Test> = vec![
+	pub static ref DEFAULT_ACTIVE_SET: CandidateSet<Test> = vec![
 		(CANDIDATE_1.id, REGISTRATION_HOLD_AMOUNT),
 		(CANDIDATE_4.id, REGISTRATION_HOLD_AMOUNT * 3),
 		(CANDIDATE_11.id, REGISTRATION_HOLD_AMOUNT * 6),
@@ -152,7 +152,7 @@ pub struct TestExtBuilder {
 	epoch_duration: BlockNumberFor<Test>,
 	min_candidate_bond: BalanceOf<Test>,
 	min_delegate_amount: BalanceOf<Test>,
-	gensis_candidates: CandidatePool<Test>,
+	gensis_candidates: CandidateSet<Test>,
 	delay_deregister_candidate_duration: BlockNumberFor<Test>,
 	delay_reward_payout_sent: BlockNumberFor<Test>,
 	delay_undelegate_candidate: BlockNumberFor<Test>,
@@ -191,7 +191,7 @@ impl TestExtBuilder {
 		self
 	}
 
-	pub fn genesis_candidates(&mut self, candidates: CandidatePool<Test>) -> &mut Self {
+	pub fn genesis_candidates(&mut self, candidates: CandidateSet<Test>) -> &mut Self {
 		self.gensis_candidates = candidates;
 		self
 	}

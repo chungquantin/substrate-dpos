@@ -46,18 +46,18 @@ fn should_failed_undelegate_below_delegated_amount() {
 
 		assert_eq!(
 			DelayActionRequests::<Test>::get(ACCOUNT_6.id, DelayActionType::CandidateUndelegated),
-			vec![DelayActionRequest {
+			Some(DelayActionRequest {
 				amount: Some(delegated_amount - 1),
 				created_at: 1010,
 				delay_for: Dpos::delay_undelegate_candidate_duration(),
 				target: Some(candidate)
-			}]
+			})
 		);
 
 		ext.run_to_block_from(1010, TEST_BLOCKS_PER_EPOCH * 2);
 
 		assert_noop!(
-			Dpos::execute_undelegate_candidate(ros(ACCOUNT_6.id), 0),
+			Dpos::execute_undelegate_candidate(ros(ACCOUNT_6.id)),
 			Error::<Test>::BelowMinimumDelegateAmount
 		);
 	});
@@ -74,10 +74,10 @@ fn should_failed_undelegate_over_amount() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
-			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
+			assert_eq!(CandidatePool::<Test>::count(), 1);
 
 			ext.run_to_block(5);
 
@@ -90,18 +90,18 @@ fn should_failed_undelegate_over_amount() {
 					ACCOUNT_4.id,
 					DelayActionType::CandidateUndelegated
 				),
-				vec![DelayActionRequest {
+				Some(DelayActionRequest {
 					amount: Some(300),
 					created_at: 5,
 					delay_for: Dpos::delay_undelegate_candidate_duration(),
 					target: Some(candidate.id)
-				}]
+				})
 			);
 
 			ext.run_to_block_from(5, TEST_BLOCKS_PER_EPOCH * 2);
 
 			assert_noop!(
-				Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id), 0),
+				Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id)),
 				Error::<Test>::InsufficientDelegatedAmount
 			);
 		});
@@ -118,7 +118,7 @@ fn should_ok_undelegate_all_amount() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 
@@ -133,23 +133,23 @@ fn should_ok_undelegate_all_amount() {
 					ACCOUNT_4.id,
 					DelayActionType::CandidateUndelegated
 				),
-				vec![DelayActionRequest {
+				Some(DelayActionRequest {
 					amount: Some(200),
 					created_at: 5,
 					delay_for: Dpos::delay_undelegate_candidate_duration(),
 					target: Some(candidate.id)
-				}]
+				})
 			);
 
 			ext.run_to_block_from(5, TEST_BLOCKS_PER_EPOCH * 2);
 
-			assert_ok!(Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id), 0),);
+			assert_ok!(Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id)));
 
 			assert_eq!(DelegationInfos::<Test>::get(ACCOUNT_1.id, candidate.id), None);
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_1.id), 0);
 			assert_eq!(CandidateDelegators::<Test>::get(ACCOUNT_1.id), vec![]);
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
 		});
@@ -166,10 +166,10 @@ fn should_ok_undelegate_partial_amount() {
 		.execute_with(|| {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
 			);
-			assert_eq!(CandidateDetailMap::<Test>::count(), 1);
+			assert_eq!(CandidatePool::<Test>::count(), 1);
 
 			ext.run_to_block(5);
 
@@ -184,17 +184,17 @@ fn should_ok_undelegate_partial_amount() {
 					ACCOUNT_4.id,
 					DelayActionType::CandidateUndelegated
 				),
-				vec![DelayActionRequest {
+				Some(DelayActionRequest {
 					amount: Some(75),
 					created_at: 10,
 					delay_for: Dpos::delay_undelegate_candidate_duration(),
 					target: Some(candidate.id)
-				}]
+				})
 			);
 
 			ext.run_to_block_from(15, TEST_BLOCKS_PER_EPOCH * 2);
 
-			assert_ok!(Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id), 0));
+			assert_ok!(Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id)));
 
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
@@ -203,16 +203,20 @@ fn should_ok_undelegate_partial_amount() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![ACCOUNT_4.id]);
 			assert_eq!(
-				CandidateDetailMap::<Test>::get(candidate.id),
+				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail { bond: 40, total_delegations: 125, registered_at: 1 })
 			);
 		});
 }
 
-// TODO
 #[test]
 fn should_ok_multiple_undelegate_both_all_and_partial() {
-	// Questions:
-	// - Can we undelegate more while there is another delay action request in queue?
-	// - Delay for duration should go to next epoch or counting the number of block numbers?
+	todo!(
+		"Test should failed when trying to undelegate while there is another delay action request"
+	);
+}
+
+#[test]
+fn should_ok_undelegate_before_the_due_date() {
+	todo!("Delay for duration should go to next epoch or counting the number of block numbers?");
 }

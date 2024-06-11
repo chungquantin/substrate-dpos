@@ -31,7 +31,7 @@ fn should_ok_register_single_sucessfully() {
 		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
 		let current_block_number = System::block_number();
 		assert_eq!(
-			CandidateDetailMap::<Test>::get(succes_acc),
+			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: current_block_number,
@@ -63,7 +63,7 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 		let hold_amount = 15;
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_1), hold_amount));
 		assert_eq!(
-			CandidateDetailMap::<Test>::get(candidate_1),
+			CandidatePool::<Test>::get(candidate_1),
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: System::block_number(),
@@ -75,10 +75,10 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			candidate_id: candidate_1,
 			initial_bond: hold_amount,
 		}));
-		assert_eq!(CandidateDetailMap::<Test>::count(), 1);
+		assert_eq!(CandidatePool::<Test>::count(), 1);
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_2), hold_amount));
 		assert_eq!(
-			CandidateDetailMap::<Test>::get(candidate_2),
+			CandidatePool::<Test>::get(candidate_2),
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: System::block_number(),
@@ -90,11 +90,11 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			initial_bond: hold_amount,
 		}));
 
-		assert_eq!(CandidateDetailMap::<Test>::count(), 2);
+		assert_eq!(CandidatePool::<Test>::count(), 2);
 
 		assert_ok!(Dpos::register_as_candidate(ros(candidate_3), hold_amount));
 		assert_eq!(
-			CandidateDetailMap::<Test>::get(candidate_3),
+			CandidatePool::<Test>::get(candidate_3),
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: System::block_number(),
@@ -106,7 +106,7 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			initial_bond: hold_amount,
 		}));
 
-		assert_eq!(CandidateDetailMap::<Test>::count(), 3);
+		assert_eq!(CandidatePool::<Test>::count(), 3);
 
 		assert_eq!(Balances::free_balance(candidate_1), balance_1 - hold_amount);
 		assert_eq!(

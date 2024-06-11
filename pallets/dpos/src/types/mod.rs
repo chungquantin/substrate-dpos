@@ -26,4 +26,17 @@ where
 	}
 }
 
+pub struct MultiplyGet<T, R> {
+	_phantom: PhantomData<(T, R)>,
+}
+impl<T, R> Get<u32> for MultiplyGet<T, R>
+where
+	T: Get<u32>,
+	R: Get<u32>,
+{
+	fn get() -> u32 {
+		T::get() * R::get()
+	}
+}
+
 pub type DispatchResultWithValue<T> = Result<T, sp_runtime::DispatchError>;
