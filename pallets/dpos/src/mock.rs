@@ -105,8 +105,8 @@ impl pallet_balances::Config for Test {
 	type MaxFreezes = ConstU32<10>;
 }
 
-pub struct DynamicAuthor;
-impl FindAuthor<AccountId> for DynamicAuthor {
+pub struct RoundRobinAuthor;
+impl FindAuthor<AccountId> for RoundRobinAuthor {
 	fn find_author<'a, I>(_: I) -> Option<AccountId>
 	where
 		I: 'a + IntoIterator<Item = ([u8; 4], &'a [u8])>,
@@ -130,7 +130,7 @@ impl ReportNewValidatorSet<AccountId> for DoNothing {
 }
 
 impl pallet_authorship::Config for Test {
-	type FindAuthor = DynamicAuthor;
+	type FindAuthor = RoundRobinAuthor;
 	type EventHandler = ();
 }
 
@@ -229,7 +229,7 @@ impl TestExtBuilder {
 		self
 	}
 
-	pub fn build(&self) -> sp_io::TestExternalities {
+	fn with_storage(&self) -> sp_io::TestExternalities {
 		let mut storage =
 			frame_system::GenesisConfig::<Test>::default().build_storage().unwrap().into();
 
@@ -273,12 +273,26 @@ impl TestExtBuilder {
 			delay_undelegate_candidate: self.delay_undelegate_candidate,
 		}
 		.assimilate_storage(&mut storage);
+		sp_io::TestExternalities::from(storage)
+	}
 
-		let mut ext = sp_io::TestExternalities::from(storage);
-
+	pub fn build(&self) -> sp_io::TestExternalities {
+		let mut ext = self.with_storage();
 		ext.execute_with(|| {
 			System::set_block_number(1);
 			Dpos::on_initialize(1);
+		});
+
+		ext
+	}
+
+	pub fn build_from_genesis(&self) -> sp_io::TestExternalities {
+		let mut ext = self.with_storage();
+		ext.execute_with(|| {
+			if !self.reward_distribution_disabled {
+				System::set_block_number(0);
+				Dpos::on_initialize(0);
+			}
 		});
 
 		ext

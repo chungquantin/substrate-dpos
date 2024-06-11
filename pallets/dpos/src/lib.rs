@@ -17,6 +17,7 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+// TODO Does the algorithm start at block zero?
 // TODO switch status of the validator and delegator to offline if they request a delay action
 // TODO fix genesis_config build test error
 // TODO algorithm for reward distribution
@@ -338,7 +339,7 @@ pub mod pallet {
 			// Epoch has passed...
 			let epoch_indx = n % EpochDuration::<T>::get();
 			let active_validator_set = Self::select_active_validator_set();
-			if n % EpochDuration::<T>::get() == BlockNumberFor::<T>::zero() {
+			if epoch_indx == BlockNumberFor::<T>::zero() {
 				// CHANGE VALIDATORS LOGIC
 				// You cannot return an error here, so you have to be clever with your code...
 				for (active_validator_id, total_staked) in active_validator_set.iter() {
@@ -357,7 +358,6 @@ pub mod pallet {
 			}
 
 			if let Some(current_block_author) = Self::find_author() {
-				log::info!("{:?}", current_block_author);
 				let maybe_active_validator = active_validator_set
 					.into_iter()
 					.find(|(validator, _)| validator == &current_block_author);
