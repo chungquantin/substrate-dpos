@@ -92,7 +92,6 @@ fn should_ok_delegate_candidate_successfully() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -103,7 +102,7 @@ fn should_ok_delegate_candidate_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
-				Some(DelegationInfo { amount: 200, last_modified_at: 5 })
+				Some(DelegationInfo { amount: 200 })
 			);
 			assert_eq!(Balances::free_balance(ACCOUNT_4.id), ACCOUNT_4.balance - 200);
 			assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200);
@@ -120,7 +119,6 @@ fn should_ok_delegate_candidate_successfully() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 200,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -142,7 +140,6 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -159,7 +156,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
-				Some(DelegationInfo { amount: 200, last_modified_at: 5 })
+				Some(DelegationInfo { amount: 200 })
 			);
 			assert_eq!(
 				Balances::free_balance(ACCOUNT_4.id),
@@ -186,7 +183,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
-				Some(DelegationInfo { amount: sum_delegated_amount, last_modified_at: 10 })
+				Some(DelegationInfo { amount: sum_delegated_amount })
 			);
 			assert_eq!(
 				Balances::free_balance(ACCOUNT_4.id),
@@ -206,7 +203,6 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: sum_delegated_amount,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -232,7 +228,6 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -248,7 +243,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), 1);
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate_1.id),
-				Some(DelegationInfo { amount: delegated_amount_1, last_modified_at: 5 })
+				Some(DelegationInfo { amount: delegated_amount_1 })
 			);
 			assert_eq!(
 				Balances::free_balance(ACCOUNT_6.id),
@@ -275,7 +270,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), 2);
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate_2.id),
-				Some(DelegationInfo { amount: delegated_amount_2, last_modified_at: 10 })
+				Some(DelegationInfo { amount: delegated_amount_2 })
 			);
 			assert_eq!(
 				Balances::free_balance(ACCOUNT_6.id),
@@ -298,7 +293,6 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				Some(CandidateDetail {
 					bond: 70,
 					total_delegations: delegated_amount_2,
-					registered_at: 10,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -315,7 +309,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), 3);
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate_3.id),
-				Some(DelegationInfo { amount: delegated_amount_3, last_modified_at: 100 })
+				Some(DelegationInfo { amount: delegated_amount_3 })
 			);
 			assert_eq!(
 				Balances::free_balance(ACCOUNT_6.id),
@@ -342,7 +336,6 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				Some(CandidateDetail {
 					bond: 70,
 					total_delegations: delegated_amount_3,
-					registered_at: 100,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -376,7 +369,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![delegator_1.id]);
 			assert_eq!(
 				DelegationInfos::<Test>::get(delegator_1.id, candidate.id),
-				Some(DelegationInfo { amount: delegated_amount_1, last_modified_at: 5 })
+				Some(DelegationInfo { amount: delegated_amount_1 })
 			);
 			assert_eq!(
 				Balances::free_balance(delegator_1.id),
@@ -407,7 +400,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			);
 			assert_eq!(
 				DelegationInfos::<Test>::get(delegator_2.id, candidate.id),
-				Some(DelegationInfo { amount: delegated_amount_2, last_modified_at: 10 })
+				Some(DelegationInfo { amount: delegated_amount_2 })
 			);
 			assert_eq!(
 				Balances::free_balance(delegator_2.id),
@@ -434,7 +427,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(delegator_3.id), 1);
 			assert_eq!(
 				DelegationInfos::<Test>::get(delegator_3.id, candidate.id),
-				Some(DelegationInfo { amount: delegated_amount_3, last_modified_at: 20 })
+				Some(DelegationInfo { amount: delegated_amount_3 })
 			);
 			assert_eq!(
 				Balances::free_balance(delegator_3.id),
@@ -466,7 +459,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(delegator_1.id), 1);
 			assert_eq!(
 				DelegationInfos::<Test>::get(delegator_1.id, candidate.id),
-				Some(DelegationInfo { amount: delegated_amount_1 * 2, last_modified_at: 100 })
+				Some(DelegationInfo { amount: delegated_amount_1 * 2 })
 			);
 			assert_eq!(
 				Balances::free_balance(delegator_1.id),
@@ -490,7 +483,6 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 					total_delegations: delegated_amount_3 +
 						delegated_amount_1 + delegated_amount_2 +
 						delegated_amount_1,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);

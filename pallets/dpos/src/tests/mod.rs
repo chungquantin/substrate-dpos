@@ -6,16 +6,20 @@ pub fn ros(indx: u64) -> RuntimeOrigin {
 }
 
 #[cfg(test)]
-mod delay_deregister_candidate;
+mod test_candidate_bond_less;
 #[cfg(test)]
-mod delay_undelegate_candidate;
+mod test_candidate_bond_more;
 #[cfg(test)]
-mod delegate_candidate;
+mod test_delay_deregister_candidate;
 #[cfg(test)]
-mod force_deregister_candidate;
+mod test_delay_undelegate_candidate;
 #[cfg(test)]
-mod force_undelegate_candidate;
+mod test_delegate_candidate;
 #[cfg(test)]
-mod register_as_candidate;
+mod test_force_deregister_candidate;
+#[cfg(test)]
+mod test_force_undelegate_candidate;
+#[cfg(test)]
+mod test_register_as_candidate;
 #[cfg(test)]
 mod validator_election;

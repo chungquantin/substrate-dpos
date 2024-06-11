@@ -45,12 +45,10 @@ fn should_ok_register_single_sucessfully() {
 		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
 		let hold_amount = 15;
 		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
-		let current_block_number = System::block_number();
 		assert_eq!(
 			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: current_block_number,
 				total_delegations: 0,
 				status: types::ValidatorStatus::Online
 			})
@@ -83,7 +81,6 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			CandidatePool::<Test>::get(candidate_1),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: System::block_number(),
 				total_delegations: 0,
 				status: types::ValidatorStatus::Online
 			})
@@ -99,7 +96,6 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			CandidatePool::<Test>::get(candidate_2),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: System::block_number(),
 				total_delegations: 0,
 				status: types::ValidatorStatus::Online
 			})
@@ -116,7 +112,6 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			CandidatePool::<Test>::get(candidate_3),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: System::block_number(),
 				total_delegations: 0,
 				status: types::ValidatorStatus::Online
 			})

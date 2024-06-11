@@ -36,7 +36,6 @@ fn should_ok_delay_deregister_sucessfully() {
 			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: 10,
 				total_delegations: 0,
 				status: types::ValidatorStatus::Offline
 			})
@@ -103,7 +102,7 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
-					Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+					Some(DelegationInfo { amount: delegated_amount })
 				);
 				assert_eq!(
 					Balances::free_balance(ACCOUNT_6.id),
@@ -173,7 +172,6 @@ fn should_failed_delay_deregister_candidates_before_due_date() {
 					CandidatePool::<Test>::get(candidate),
 					Some(CandidateDetail {
 						bond,
-						registered_at: 0,
 						total_delegations: 0,
 						status: types::ValidatorStatus::Online
 					})
@@ -199,7 +197,6 @@ fn should_failed_delay_deregister_candidates_before_due_date() {
 					CandidatePool::<Test>::get(candidate),
 					Some(CandidateDetail {
 						bond,
-						registered_at: 0,
 						total_delegations: delegated_amount,
 						status: types::ValidatorStatus::Offline
 					})
@@ -207,7 +204,7 @@ fn should_failed_delay_deregister_candidates_before_due_date() {
 				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
-					Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+					Some(DelegationInfo { amount: delegated_amount })
 				);
 				assert_eq!(
 					Balances::free_balance(ACCOUNT_6.id),
@@ -226,7 +223,6 @@ fn should_failed_delay_deregister_candidates_before_due_date() {
 					CandidatePool::<Test>::get(candidate),
 					Some(CandidateDetail {
 						bond,
-						registered_at: 0,
 						total_delegations: delegated_amount,
 						status: types::ValidatorStatus::Offline
 					})
@@ -239,7 +235,6 @@ fn should_failed_delay_deregister_candidates_before_due_date() {
 					CandidatePool::<Test>::get(candidate),
 					Some(CandidateDetail {
 						bond,
-						registered_at: 0,
 						total_delegations: delegated_amount,
 						status: types::ValidatorStatus::Offline
 					})
@@ -258,7 +253,7 @@ fn should_failed_delay_deregister_candidates_before_due_date() {
 				);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
-					Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+					Some(DelegationInfo { amount: delegated_amount })
 				);
 				assert_eq!(
 					DelegateCountMap::<Test>::get(ACCOUNT_6.id),
@@ -297,7 +292,6 @@ fn should_ok_cancel_deregister_candidate_requests() {
 					CandidatePool::<Test>::get(candidate),
 					Some(CandidateDetail {
 						bond: hold_amount,
-						registered_at: 0,
 						total_delegations: 0,
 						status: types::ValidatorStatus::Online
 					})
@@ -323,7 +317,6 @@ fn should_ok_cancel_deregister_candidate_requests() {
 					CandidatePool::<Test>::get(candidate),
 					Some(CandidateDetail {
 						bond: hold_amount,
-						registered_at: 0,
 						total_delegations: delegated_amount,
 						status: types::ValidatorStatus::Offline
 					})
@@ -331,7 +324,7 @@ fn should_ok_cancel_deregister_candidate_requests() {
 				assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
 				assert_eq!(
 					DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
-					Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+					Some(DelegationInfo { amount: delegated_amount })
 				);
 				assert_eq!(
 					Balances::free_balance(ACCOUNT_6.id),
@@ -351,7 +344,6 @@ fn should_ok_cancel_deregister_candidate_requests() {
 					CandidatePool::<Test>::get(candidate),
 					Some(CandidateDetail {
 						bond,
-						registered_at: 0,
 						total_delegations: delegated_amount,
 						status: types::ValidatorStatus::Online
 					})
@@ -381,7 +373,6 @@ fn should_failed_cancel_not_found_delay_action_request() {
 			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: 10,
 				total_delegations: 0,
 				status: types::ValidatorStatus::Online
 			})
@@ -403,7 +394,6 @@ fn should_failed_cancel_not_found_delay_action_request() {
 			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: 10,
 				total_delegations: 0,
 				status: types::ValidatorStatus::Offline
 			})
@@ -443,7 +433,6 @@ fn should_failed_deregister_while_in_delay_duration() {
 			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: 10,
 				total_delegations: 0,
 				status: types::ValidatorStatus::Online
 			})
@@ -465,7 +454,6 @@ fn should_failed_deregister_while_in_delay_duration() {
 			CandidatePool::<Test>::get(succes_acc),
 			Some(CandidateDetail {
 				bond: hold_amount,
-				registered_at: 10,
 				total_delegations: 0,
 				status: types::ValidatorStatus::Offline
 			})

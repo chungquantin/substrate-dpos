@@ -114,7 +114,6 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -190,7 +189,7 @@ fn should_ok_deregister_all_candidates_sucessfully() {
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_6.id), (indx + 1) as u32);
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_6.id, candidate),
-				Some(DelegationInfo { amount: delegated_amount, last_modified_at: 1010 })
+				Some(DelegationInfo { amount: delegated_amount })
 			);
 			assert_eq!(
 				Balances::free_balance(ACCOUNT_6.id),

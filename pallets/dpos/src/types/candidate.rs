@@ -3,7 +3,6 @@ use frame_support::{
 	sp_runtime::traits::{CheckedAdd, CheckedSub},
 	traits::DefensiveSaturating,
 };
-use frame_system::pallet_prelude::BlockNumberFor;
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
 use sp_runtime::traits::Zero;
@@ -23,18 +22,12 @@ pub enum ValidatorStatus {
 pub struct CandidateDetail<T: Config> {
 	pub bond: BalanceOf<T>,
 	pub total_delegations: BalanceOf<T>,
-	pub registered_at: BlockNumberFor<T>,
 	pub status: ValidatorStatus,
 }
 
 impl<T: Config> CandidateDetail<T> {
-	pub fn new(bond: BalanceOf<T>, registered_at: BlockNumberFor<T>) -> Self {
-		CandidateDetail {
-			registered_at,
-			total_delegations: Zero::zero(),
-			bond,
-			status: ValidatorStatus::Online,
-		}
+	pub fn new(bond: BalanceOf<T>) -> Self {
+		CandidateDetail { total_delegations: Zero::zero(), bond, status: ValidatorStatus::Online }
 	}
 
 	pub fn add_delegated_amount(

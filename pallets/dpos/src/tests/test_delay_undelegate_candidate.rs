@@ -79,7 +79,6 @@ fn should_failed_undelegate_over_amount() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -108,7 +107,7 @@ fn should_failed_undelegate_over_amount() {
 
 			assert_noop!(
 				Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id)),
-				Error::<Test>::BelowMinimumDelegateAmount
+				Error::<Test>::InvalidMinimumDelegateAmount
 			);
 		});
 }
@@ -129,7 +128,6 @@ fn should_ok_undelegate_all_amount() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -165,7 +163,6 @@ fn should_ok_undelegate_all_amount() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -188,7 +185,6 @@ fn should_ok_undelegate_partial_amount() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -221,7 +217,7 @@ fn should_ok_undelegate_partial_amount() {
 
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
-				Some(DelegationInfo { amount: 125, last_modified_at: 55 })
+				Some(DelegationInfo { amount: 125 })
 			);
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![ACCOUNT_4.id]);
@@ -230,7 +226,6 @@ fn should_ok_undelegate_partial_amount() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 125,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -262,7 +257,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_4.id, candidate.id),
-				Some(DelegationInfo { amount: 200 - 75, last_modified_at: System::block_number() })
+				Some(DelegationInfo { amount: 200 - 75 })
 			);
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_4.id), 1);
 			assert_eq!(
@@ -274,7 +269,6 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 500 - 75,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -295,7 +289,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 
 			assert_eq!(
 				DelegationInfos::<Test>::get(ACCOUNT_5.id, candidate.id),
-				Some(DelegationInfo { amount: 300 - 199, last_modified_at: latest_block_height })
+				Some(DelegationInfo { amount: 300 - 199 })
 			);
 			assert_eq!(DelegateCountMap::<Test>::get(ACCOUNT_5.id), 1);
 			assert_eq!(
@@ -307,7 +301,6 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 500 - 75 - 199,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -334,7 +327,6 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 500 - 75 - 199 - 101,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);
@@ -366,7 +358,6 @@ fn should_failed_undelegate_while_in_delay_duration() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 0,
-					registered_at: 1,
 					status: types::ValidatorStatus::Online
 				})
 			);

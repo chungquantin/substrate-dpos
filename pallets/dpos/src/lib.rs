@@ -17,18 +17,19 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+// TODO should we freeze or hold the delegated amount?
+// TODO asking about the lockable currency trait
+
 // TODO exclude the offline validator from the active set
 // TODO write test for canddiate_bond_more
 // TODO write test for candidate_bond_less
-// TODO add bond more method
 // TODO algorithm for reward distribution
 // TODO add simulation test for reward distribution
 // TODO add integrity testing
 // TODO add documentation
 // TODO integrate with pallet_session
+// TODO migration: the CandidateDelegators storage into CandidateDelegations
 // TODO optional: consider adding bags list
-// TODO migration: changing the storage struct type to be cleaner
-// TODO fork Polkadot staking dashboard and build the UI
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::{types::*, weights::WeightInfo};
@@ -256,7 +257,7 @@ pub mod pallet {
 		},
 		CandidateLessBondStaked {
 			candidate_id: T::AccountId,
-			removal_bond: BalanceOf<T>,
+			deducted_bond: BalanceOf<T>,
 		},
 		CandidateRegistrationRemoved {
 			candidate_id: T::AccountId,
@@ -360,10 +361,12 @@ pub mod pallet {
 		DelegationDoesNotExist,
 		BelowMinimumDelegateAmount,
 		BelowMinimumCandidateBond,
+		InvalidMinimumDelegateAmount,
+		InvalidMinimumCandidateBond,
 		NoDelayActionRequestFound,
 		ActionIsStillInDelayDuration,
 		InvalidDelayActionPayload,
-		InvalidAmount,
+		InvalidZeroAmount,
 	}
 
 	/// A reason for the pallet dpos placing a hold on funds.
@@ -381,7 +384,7 @@ pub mod pallet {
 		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn register_as_candidate(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
-			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
+			ensure!(bond > Zero::zero(), Error::<T>::InvalidZeroAmount);
 			ensure!(bond >= T::MinCandidateBond::get(), Error::<T>::BelowMinimumCandidateBond);
 
 			let validator = ensure_signed(origin)?;
@@ -401,7 +404,7 @@ pub mod pallet {
 		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn candidate_bond_more(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
-			ensure!(bond > Zero::zero(), Error::<T>::InvalidAmount);
+			ensure!(bond > Zero::zero(), Error::<T>::InvalidZeroAmount);
 
 			let validator = ensure_signed(origin)?;
 
@@ -421,6 +424,8 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::default())]
 		pub fn candidate_bond_less(origin: OriginFor<T>, bond: BalanceOf<T>) -> DispatchResult {
+			ensure!(bond > Zero::zero(), Error::<T>::InvalidZeroAmount);
+
 			let validator = ensure_signed(origin)?;
 
 			ensure!(Self::is_candidate(&validator), Error::<T>::CandidateDoesNotExist);
@@ -429,7 +434,7 @@ pub mod pallet {
 			let new_candidate_bond = candidate_detail
 				.bond
 				.checked_sub(&bond)
-				.ok_or(Error::<T>::BelowMinimumCandidateBond)?;
+				.ok_or(Error::<T>::InvalidMinimumCandidateBond)?;
 
 			if new_candidate_bond.is_zero() {
 				// If the candidate bond amount is removed completely, we want to remove
@@ -447,7 +452,7 @@ pub mod pallet {
 
 			Self::deposit_event(Event::CandidateLessBondStaked {
 				candidate_id: validator,
-				removal_bond: bond,
+				deducted_bond: bond,
 			});
 			Ok(())
 		}
@@ -459,7 +464,7 @@ pub mod pallet {
 			candidate: T::AccountId,
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
-			ensure!(amount > Zero::zero(), Error::<T>::InvalidAmount);
+			ensure!(amount > Zero::zero(), Error::<T>::InvalidZeroAmount);
 
 			let delegator = ensure_signed(origin)?;
 			match DelegationInfos::<T>::try_get(&delegator, &candidate) {
@@ -841,13 +846,13 @@ pub mod pallet {
 			candidate: T::AccountId,
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
-			ensure!(amount > Zero::zero(), Error::<T>::InvalidAmount);
+			ensure!(amount > Zero::zero(), Error::<T>::InvalidZeroAmount);
 
 			let mut delegation_info = Self::get_delegation(&delegator, &candidate)?;
 			let new_delegated_amount = delegation_info
 				.amount
 				.checked_sub(&amount)
-				.ok_or(Error::<T>::BelowMinimumDelegateAmount)?;
+				.ok_or(Error::<T>::InvalidMinimumDelegateAmount)?;
 
 			if new_delegated_amount.is_zero() {
 				// If the delegated amount is removed completely, we want to remove
@@ -921,10 +926,7 @@ pub mod pallet {
 			T::NativeBalance::hold(&HoldReason::CandidateBondReserved.into(), &validator, bond)?;
 
 			// Store the amount held in our local storage.
-			CandidatePool::<T>::insert(
-				&validator,
-				CandidateDetail::new(bond, frame_system::Pallet::<T>::block_number()),
-			);
+			CandidatePool::<T>::insert(&validator, CandidateDetail::new(bond));
 			Ok(())
 		}
 
