@@ -111,7 +111,12 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 
 			ext.run_to_block(5);

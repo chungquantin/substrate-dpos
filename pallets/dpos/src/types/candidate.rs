@@ -6,10 +6,17 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
+use sp_runtime::traits::Zero;
 
 use crate::{BalanceOf, Config};
 
 use super::DispatchResultWithValue;
+
+#[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen, PartialEq, Eq)]
+pub enum ValidatorStatus {
+	Online,
+	Offline,
+}
 
 #[derive(Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen, PartialEq, Eq)]
 #[scale_info(skip_type_params(T))]
@@ -17,9 +24,19 @@ pub struct CandidateDetail<T: Config> {
 	pub bond: BalanceOf<T>,
 	pub total_delegations: BalanceOf<T>,
 	pub registered_at: BlockNumberFor<T>,
+	pub status: ValidatorStatus,
 }
 
 impl<T: Config> CandidateDetail<T> {
+	pub fn new(bond: BalanceOf<T>, registered_at: BlockNumberFor<T>) -> Self {
+		CandidateDetail {
+			registered_at,
+			total_delegations: Zero::zero(),
+			bond,
+			status: ValidatorStatus::Online,
+		}
+	}
+
 	pub fn add_delegated_amount(
 		&mut self,
 		amount: BalanceOf<T>,

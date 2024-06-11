@@ -17,7 +17,6 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// TODO Does the algorithm start at block zero? Don't have answer yet
 // TODO switch status of the validator and delegator to offline if they request a delay action
 // TODO fix genesis_config build test error
 // TODO algorithm for reward distribution
@@ -849,11 +848,7 @@ pub mod pallet {
 			// Store the amount held in our local storage.
 			CandidatePool::<T>::insert(
 				&validator,
-				CandidateDetail {
-					bond,
-					registered_at: frame_system::Pallet::<T>::block_number(),
-					total_delegations: Zero::zero(),
-				},
+				CandidateDetail::new(bond, frame_system::Pallet::<T>::block_number()),
 			);
 			Ok(())
 		}

@@ -75,7 +75,12 @@ fn should_failed_undelegate_over_amount() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 			assert_eq!(CandidatePool::<Test>::count(), 1);
 
@@ -119,7 +124,12 @@ fn should_ok_undelegate_all_amount() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 
 			ext.run_to_block(5);
@@ -150,7 +160,12 @@ fn should_ok_undelegate_all_amount() {
 			assert_eq!(CandidateDelegators::<Test>::get(ACCOUNT_1.id), vec![]);
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 		});
 }
@@ -167,7 +182,12 @@ fn should_ok_undelegate_partial_amount() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 			assert_eq!(CandidatePool::<Test>::count(), 1);
 
@@ -204,7 +224,12 @@ fn should_ok_undelegate_partial_amount() {
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![ACCOUNT_4.id]);
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 125, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 125,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 		});
 }

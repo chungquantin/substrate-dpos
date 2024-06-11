@@ -35,7 +35,8 @@ fn should_ok_register_single_sucessfully() {
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: current_block_number,
-				total_delegations: 0
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
 			})
 		);
 
@@ -67,7 +68,8 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: System::block_number(),
-				total_delegations: 0
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
 			})
 		);
 
@@ -82,7 +84,8 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: System::block_number(),
-				total_delegations: 0
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
 			})
 		);
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
@@ -98,7 +101,8 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 			Some(CandidateDetail {
 				bond: hold_amount,
 				registered_at: System::block_number(),
-				total_delegations: 0
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
 			})
 		);
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {

@@ -88,7 +88,12 @@ fn should_ok_delegate_candidate_successfully() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 
 			ext.run_to_block(5);
@@ -111,7 +116,12 @@ fn should_ok_delegate_candidate_successfully() {
 
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 200, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 200,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 		});
 }
@@ -128,7 +138,12 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 
 			ext.run_to_block(5);
@@ -190,7 +205,8 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: sum_delegated_amount,
-					registered_at: 1
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
 				})
 			);
 		});
@@ -212,7 +228,12 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate_1.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate_1.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 
 			ext.run_to_block(5);
@@ -276,7 +297,8 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				Some(CandidateDetail {
 					bond: 70,
 					total_delegations: delegated_amount_2,
-					registered_at: 10
+					registered_at: 10,
+					status: types::ValidatorStatus::Online
 				})
 			);
 
@@ -319,7 +341,8 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 				Some(CandidateDetail {
 					bond: 70,
 					total_delegations: delegated_amount_3,
-					registered_at: 100
+					registered_at: 100,
+					status: types::ValidatorStatus::Online
 				})
 			);
 		});
@@ -422,8 +445,8 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_3.id,
 				amount: delegated_amount_3,
-				total_delegated_amount: delegated_amount_1 +
-					delegated_amount_2 + delegated_amount_3,
+				total_delegated_amount: delegated_amount_1
+					+ delegated_amount_2 + delegated_amount_3,
 			}));
 
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id).len(), 3);
@@ -454,19 +477,20 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 				candidate_id: candidate.id,
 				delegated_by: delegator_1.id,
 				amount: delegated_amount_1,
-				total_delegated_amount: delegated_amount_1 +
-					delegated_amount_2 + delegated_amount_3 +
-					delegated_amount_1,
+				total_delegated_amount: delegated_amount_1
+					+ delegated_amount_2 + delegated_amount_3
+					+ delegated_amount_1,
 			}));
 
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
 				Some(CandidateDetail {
 					bond: 40,
-					total_delegations: delegated_amount_3 +
-						delegated_amount_1 + delegated_amount_2 +
-						delegated_amount_1,
-					registered_at: 1
+					total_delegations: delegated_amount_3
+						+ delegated_amount_1 + delegated_amount_2
+						+ delegated_amount_1,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
 				})
 			);
 		});

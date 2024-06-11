@@ -34,7 +34,12 @@ fn should_ok_delay_deregister_sucessfully() {
 
 		assert_eq!(
 			CandidatePool::<Test>::get(succes_acc),
-			Some(CandidateDetail { bond: hold_amount, registered_at: 10, total_delegations: 0 })
+			Some(CandidateDetail {
+				bond: hold_amount,
+				registered_at: 10,
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
+			})
 		);
 		assert_eq!(
 			DelayActionRequests::<Test>::get(succes_acc, DelayActionType::CandidateLeaved),
@@ -305,7 +310,12 @@ fn should_failed_cancel_not_found_delay_action_request() {
 		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
 		assert_eq!(
 			CandidatePool::<Test>::get(succes_acc),
-			Some(CandidateDetail { bond: hold_amount, registered_at: 10, total_delegations: 0 })
+			Some(CandidateDetail {
+				bond: hold_amount,
+				registered_at: 10,
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
+			})
 		);
 		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
 		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
@@ -322,7 +332,12 @@ fn should_failed_cancel_not_found_delay_action_request() {
 
 		assert_eq!(
 			CandidatePool::<Test>::get(succes_acc),
-			Some(CandidateDetail { bond: hold_amount, registered_at: 10, total_delegations: 0 })
+			Some(CandidateDetail {
+				bond: hold_amount,
+				registered_at: 10,
+				total_delegations: 0,
+				status: types::ValidatorStatus::Online
+			})
 		);
 		assert_eq!(
 			DelayActionRequests::<Test>::get(succes_acc, DelayActionType::CandidateLeaved),

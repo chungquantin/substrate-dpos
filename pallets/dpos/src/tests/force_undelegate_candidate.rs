@@ -72,7 +72,12 @@ fn should_failed_undelegate_over_amount() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 			assert_eq!(CandidatePool::<Test>::count(), 1);
 
@@ -103,7 +108,12 @@ fn should_ok_undelegate_all_amount() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 
 			ext.run_to_block(5);
@@ -120,7 +130,12 @@ fn should_ok_undelegate_all_amount() {
 			assert_eq!(CandidateDelegators::<Test>::get(ACCOUNT_1.id), vec![]);
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 		});
 }
@@ -137,7 +152,12 @@ fn should_ok_undelegate_partial_amount() {
 			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 0, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 0,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 			assert_eq!(CandidatePool::<Test>::count(), 1);
 
@@ -161,7 +181,12 @@ fn should_ok_undelegate_partial_amount() {
 			assert_eq!(CandidateDelegators::<Test>::get(candidate.id), vec![ACCOUNT_4.id]);
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 125, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 125,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 		});
 }
@@ -202,7 +227,12 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 			);
 			assert_eq!(
 				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail { bond: 40, total_delegations: 500 - 75, registered_at: 1 })
+				Some(CandidateDetail {
+					bond: 40,
+					total_delegations: 500 - 75,
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
+				})
 			);
 			assert_eq!(Balances::free_balance(ACCOUNT_4.id), ACCOUNT_4.balance - 200 + 75);
 			assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_4.id), 200 - 75);
@@ -234,7 +264,8 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 500 - 75 - 199,
-					registered_at: 1
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
 				})
 			);
 			assert_eq!(Balances::free_balance(ACCOUNT_5.id), ACCOUNT_5.balance - 300 + 199);
@@ -262,7 +293,8 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				Some(CandidateDetail {
 					bond: 40,
 					total_delegations: 500 - 75 - 199 - 101,
-					registered_at: 1
+					registered_at: 1,
+					status: types::ValidatorStatus::Online
 				})
 			);
 			assert_eq!(Balances::free_balance(ACCOUNT_5.id), ACCOUNT_5.balance - 300 + 199 + 101);
