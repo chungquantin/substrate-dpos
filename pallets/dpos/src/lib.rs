@@ -20,9 +20,11 @@ mod benchmarking;
 // TODO should we freeze or hold the delegated amount?
 // TODO asking about the lockable currency trait
 
+// TODO add weight & return weight with DispatchResultWithPostInfo
+// TODO remove pallet_authorship
+// TODO Writing benchmark code
+// TODO considering extracting reward from block fee
 // TODO exclude the offline validator from the active set
-// TODO write test for canddiate_bond_more
-// TODO write test for candidate_bond_less
 // TODO algorithm for reward distribution
 // TODO add simulation test for reward distribution
 // TODO add integrity testing
@@ -124,11 +126,11 @@ pub mod pallet {
 
 		/// Percentage of commission that the delegator receives for their delegations
 		#[pallet::constant]
-		type DelegatorCommission: Get<u8>;
+		type DelegatorCommission: Get<u32>;
 
 		/// Percentage of commission that the active validator receives for their delegations
 		#[pallet::constant]
-		type AuthorCommission: Get<u8>;
+		type AuthorCommission: Get<u32>;
 
 		type ForceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
@@ -204,10 +206,13 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	#[pallet::storage]
+	pub type BalanceRate<T: Config> = StorageValue<_, u32, ValueQuery>;
+
 	#[pallet::genesis_config]
-	#[derive(frame_support::DefaultNoBound)]
 	pub struct GenesisConfig<T: Config> {
 		pub genesis_candidates: CandidateSet<T>,
+		pub balance_rate: u32,
 	}
 
 	#[pallet::genesis_build]
@@ -228,6 +233,11 @@ pub mod pallet {
 				"Delegator commission must be in percentage"
 			);
 
+			assert!(
+				self.balance_rate > 0 && self.balance_rate < 10000,
+				"Balance rate must be between 0 (0.1%) or 100 (100%)"
+			);
+
 			let mut visited: BTreeSet<T::AccountId> = BTreeSet::default();
 			for (candidate, bond) in self.genesis_candidates.iter() {
 				assert!(*bond >= T::MinCandidateBond::get(), "Invalid bond for genesis candidate");
@@ -237,10 +247,19 @@ pub mod pallet {
 					.expect("Register candidate error");
 			}
 
+			BalanceRate::<T>::put(self.balance_rate);
+
 			CurrentActiveValidators::<T>::put(
 				BoundedVec::try_from(Pallet::<T>::select_active_validator_set().to_vec())
 					.expect("Exceed limit number of the validators in the active set"),
 			);
+		}
+	}
+
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			// Default balance rate is kept as 100%
+			GenesisConfig { genesis_candidates: vec![], balance_rate: 1000 }
 		}
 	}
 
@@ -979,14 +998,18 @@ pub mod pallet {
 
 			let delegators = CandidateDelegators::<T>::get(&active_validator);
 			for delegator in delegators.iter() {
-				let delegator_reward =
-					Self::calculate_reward(total_staked, T::DelegatorCommission::get());
-				let _ = T::NativeBalance::mint_into(&delegator, delegator_reward);
+				if let Some(delegation) = DelegationInfos::<T>::get(&delegator, &active_validator) {
+					let delegator_reward =
+						Self::calculate_reward(delegation.amount, T::DelegatorCommission::get());
+					let _ = T::NativeBalance::mint_into(&delegator, delegator_reward);
+				}
 			}
 		}
 
-		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u8) -> BalanceOf<T> {
-			Percent::from_percent(percent) * total
+		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u32) -> BalanceOf<T> {
+			Percent::from_rational(percent, 1000) *
+				Percent::from_rational(BalanceRate::<T>::get(), 1000) *
+				total
 		}
 
 		// A function to get you an account id for the current block author.

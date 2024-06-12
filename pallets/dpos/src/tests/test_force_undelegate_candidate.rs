@@ -1,7 +1,7 @@
 use crate::{mock::*, *};
 use constants::*;
 use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
-use tests::ros;
+use tests::{ros, test_helpers};
 use types::{CandidateDetail, DelegationInfo};
 
 #[test]
@@ -79,16 +79,7 @@ fn should_failed_undelegate_over_amount() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
-			assert_eq!(
-				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail {
-					bond: 40,
-					total_delegations: 0,
-					status: types::ValidatorStatus::Online
-				})
-			);
-			assert_eq!(CandidatePool::<Test>::count(), 1);
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -115,15 +106,7 @@ fn should_ok_undelegate_all_amount() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
-			assert_eq!(
-				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail {
-					bond: 40,
-					total_delegations: 0,
-					status: types::ValidatorStatus::Online
-				})
-			);
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -158,16 +141,7 @@ fn should_ok_undelegate_partial_amount() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
-			assert_eq!(
-				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail {
-					bond: 40,
-					total_delegations: 0,
-					status: types::ValidatorStatus::Online
-				})
-			);
-			assert_eq!(CandidatePool::<Test>::count(), 1);
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -208,7 +182,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 

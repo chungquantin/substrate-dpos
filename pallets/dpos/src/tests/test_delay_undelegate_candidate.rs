@@ -1,7 +1,7 @@
 use crate::{mock::*, *};
 use constants::*;
 use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
-use tests::ros;
+use tests::{ros, test_helpers};
 use types::{CandidateDetail, DelayActionRequest, DelayActionType, DelegationInfo};
 
 #[test]
@@ -243,7 +243,7 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 		.delay_undelegate_candidate(TEST_BLOCKS_PER_EPOCH)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -352,15 +352,7 @@ fn should_failed_undelegate_while_in_delay_duration() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
-			assert_eq!(
-				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail {
-					bond: 40,
-					total_delegations: 0,
-					status: types::ValidatorStatus::Online
-				})
-			);
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 			assert_eq!(CandidatePool::<Test>::count(), 1);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
@@ -397,7 +389,7 @@ fn should_ok_undelegate_before_the_due_date() {
 		.delay_undelegate_candidate(TEST_BLOCKS_PER_EPOCH)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 200));
 

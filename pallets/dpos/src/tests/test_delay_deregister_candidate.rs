@@ -2,7 +2,7 @@ use crate::{mock::*, *};
 use constants::*;
 use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 
-use tests::ros;
+use tests::{ros, test_helpers};
 use types::{CandidateDetail, DelayActionRequest, DelayActionType, DelegationInfo};
 
 #[test]
@@ -363,26 +363,12 @@ fn should_ok_cancel_deregister_candidate_requests() {
 fn should_failed_cancel_not_found_delay_action_request() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
-		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
+		let (succes_acc, balance) = ACCOUNT_2.to_tuple();
 		let hold_amount = 15;
 
 		ext.run_to_block(10);
 		// Register first
-		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
-		assert_eq!(
-			CandidatePool::<Test>::get(succes_acc),
-			Some(CandidateDetail {
-				bond: hold_amount,
-				total_delegations: 0,
-				status: types::ValidatorStatus::Online
-			})
-		);
-		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
-		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
-			candidate_id: 2,
-			initial_bond: 15,
-		}));
+		test_helpers::register_new_candidate(succes_acc, balance, hold_amount);
 
 		// Then schedule to deregister
 		assert_ok!(Dpos::delay_deregister_candidate(ros(succes_acc)));
@@ -423,26 +409,12 @@ fn should_failed_cancel_not_found_delay_action_request() {
 fn should_failed_deregister_while_in_delay_duration() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
-		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
+		let (succes_acc, balance) = ACCOUNT_2.to_tuple();
 		let hold_amount = 15;
 
 		ext.run_to_block(10);
 		// Register first
-		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
-		assert_eq!(
-			CandidatePool::<Test>::get(succes_acc),
-			Some(CandidateDetail {
-				bond: hold_amount,
-				total_delegations: 0,
-				status: types::ValidatorStatus::Online
-			})
-		);
-		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
-		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
-			candidate_id: 2,
-			initial_bond: 15,
-		}));
+		test_helpers::register_new_candidate(succes_acc, balance, hold_amount);
 
 		// Then schedule to deregister
 		assert_ok!(Dpos::delay_deregister_candidate(ros(succes_acc)));

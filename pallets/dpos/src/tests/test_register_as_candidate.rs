@@ -1,10 +1,9 @@
 use crate::{mock::*, *};
 use constants::*;
-use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
+use frame_support::{assert_noop, assert_ok};
 use sp_runtime::TokenError;
 
-use tests::ros;
-use types::CandidateDetail;
+use tests::{ros, test_helpers};
 
 #[test]
 fn should_failed_invalid_bond_amount() {
@@ -27,10 +26,10 @@ fn should_failed_too_many_candidates() {
 	let mut ext = TestExtBuilder::default();
 	ext.max_candidates(4).genesis_candidates(vec![]).build().execute_with(|| {
 		// Attemp to register as candidate without enough fund in the account
-		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_1.id), 500));
-		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_2.id), 500));
-		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_3.id), 500));
-		assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_4.id), 500));
+		test_helpers::register_new_candidate(CANDIDATE_1.id, CANDIDATE_1.balance, 500);
+		test_helpers::register_new_candidate(CANDIDATE_2.id, CANDIDATE_2.balance, 500);
+		test_helpers::register_new_candidate(CANDIDATE_3.id, CANDIDATE_3.balance, 500);
+		test_helpers::register_new_candidate(CANDIDATE_4.id, CANDIDATE_4.balance, 500);
 		assert_noop!(
 			Dpos::register_as_candidate(ros(CANDIDATE_5.id), 500),
 			Error::<Test>::TooManyValidators
@@ -42,30 +41,24 @@ fn should_failed_too_many_candidates() {
 fn should_ok_register_single_sucessfully() {
 	let mut ext = TestExtBuilder::default();
 	ext.genesis_candidates(vec![]).build().execute_with(|| {
-		let (succes_acc, bond) = ACCOUNT_2.to_tuple();
+		let (success_acc, balance) = CANDIDATE_1.to_tuple();
 		let hold_amount = 15;
-		assert_ok!(Dpos::register_as_candidate(ros(succes_acc), hold_amount));
-		assert_eq!(
-			CandidatePool::<Test>::get(succes_acc),
-			Some(CandidateDetail {
-				bond: hold_amount,
-				total_delegations: 0,
-				status: types::ValidatorStatus::Online
-			})
-		);
-
-		assert_eq!(Balances::free_balance(succes_acc), bond - hold_amount);
-		assert_eq!(Balances::total_balance_on_hold(&succes_acc), hold_amount);
-		assert_eq!(
-			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &succes_acc),
-			hold_amount
-		);
-		// Assert that the correct event was deposited
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
-			candidate_id: 2,
-			initial_bond: 15,
-		}));
+		test_helpers::register_new_candidate(success_acc, balance, hold_amount);
 	});
+}
+
+#[test]
+fn should_ok_get_invalid_candidate() {
+	let mut ext = TestExtBuilder::default();
+	ext.genesis_candidates(vec![])
+		.min_candidate_bond(5)
+		.min_delegate_amount(101)
+		.build()
+		.execute_with(|| {
+			test_helpers::register_new_candidate(ACCOUNT_2.id, ACCOUNT_2.balance, 5);
+			test_helpers::register_new_candidate(ACCOUNT_3.id, ACCOUNT_3.balance, 40);
+			assert_eq!(CandidatePool::<Test>::get(ACCOUNT_4.id), None);
+		});
 }
 
 #[test]
@@ -76,73 +69,13 @@ fn should_ok_register_multiple_candidates_sucessfully() {
 		let (candidate_2, balance_2) = ACCOUNT_3.to_tuple();
 		let (candidate_3, balance_3) = ACCOUNT_4.to_tuple();
 		let hold_amount = 15;
-		assert_ok!(Dpos::register_as_candidate(ros(candidate_1), hold_amount));
-		assert_eq!(
-			CandidatePool::<Test>::get(candidate_1),
-			Some(CandidateDetail {
-				bond: hold_amount,
-				total_delegations: 0,
-				status: types::ValidatorStatus::Online
-			})
-		);
 
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
-			candidate_id: candidate_1,
-			initial_bond: hold_amount,
-		}));
+		test_helpers::register_new_candidate(candidate_1, balance_1, hold_amount);
 		assert_eq!(CandidatePool::<Test>::count(), 1);
-		assert_ok!(Dpos::register_as_candidate(ros(candidate_2), hold_amount));
-		assert_eq!(
-			CandidatePool::<Test>::get(candidate_2),
-			Some(CandidateDetail {
-				bond: hold_amount,
-				total_delegations: 0,
-				status: types::ValidatorStatus::Online
-			})
-		);
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
-			candidate_id: candidate_2,
-			initial_bond: hold_amount,
-		}));
-
+		test_helpers::register_new_candidate(candidate_2, balance_2, hold_amount);
 		assert_eq!(CandidatePool::<Test>::count(), 2);
-
-		assert_ok!(Dpos::register_as_candidate(ros(candidate_3), hold_amount));
-		assert_eq!(
-			CandidatePool::<Test>::get(candidate_3),
-			Some(CandidateDetail {
-				bond: hold_amount,
-				total_delegations: 0,
-				status: types::ValidatorStatus::Online
-			})
-		);
-		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistered {
-			candidate_id: candidate_3,
-			initial_bond: hold_amount,
-		}));
-
+		test_helpers::register_new_candidate(candidate_3, balance_3, hold_amount);
 		assert_eq!(CandidatePool::<Test>::count(), 3);
-
-		assert_eq!(Balances::free_balance(candidate_1), balance_1 - hold_amount);
-		assert_eq!(
-			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate_1),
-			hold_amount
-		);
-		assert_eq!(CandidateDelegators::<Test>::get(&candidate_1), vec![]);
-
-		assert_eq!(Balances::free_balance(candidate_2), balance_2 - hold_amount);
-		assert_eq!(
-			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate_2),
-			hold_amount
-		);
-		assert_eq!(CandidateDelegators::<Test>::get(&candidate_2), vec![]);
-
-		assert_eq!(Balances::free_balance(candidate_3), balance_3 - hold_amount);
-		assert_eq!(
-			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate_3),
-			hold_amount
-		);
-		assert_eq!(CandidateDelegators::<Test>::get(&candidate_2), vec![]);
 	});
 }
 

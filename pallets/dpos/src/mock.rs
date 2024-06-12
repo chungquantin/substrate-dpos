@@ -39,8 +39,8 @@ parameter_types! {
 	pub static EpochDuration : u64 = TEST_BLOCKS_PER_EPOCH;
 	pub static MinCandidateBond : u128 = 10;
 	pub static MinDelegateAmount : u128 = 10;
-	pub static ValidatorCommission : u8 = 3;
-	pub static DelegatorCommission : u8 = 1;
+	pub static ValidatorCommission : u32 = 3; // 0.3
+	pub static DelegatorCommission : u32 = 1; // 0.1
 }
 
 pub const REGISTRATION_HOLD_AMOUNT: u128 = 200;
@@ -163,12 +163,17 @@ impl pallet_dpos::Config for Test {
 
 pub struct TestExtBuilder {
 	gensis_candidates: CandidateSet<Test>,
+	balance_rate: u32,
 	reward_distribution_disabled: bool,
 }
 
 impl Default for TestExtBuilder {
 	fn default() -> Self {
-		Self { gensis_candidates: DEFAULT_ACTIVE_SET.to_vec(), reward_distribution_disabled: false }
+		Self {
+			gensis_candidates: DEFAULT_ACTIVE_SET.to_vec(),
+			reward_distribution_disabled: false,
+			balance_rate: 1000,
+		}
 	}
 }
 
@@ -187,6 +192,11 @@ impl TestExtBuilder {
 
 	pub fn genesis_candidates(&mut self, candidates: CandidateSet<Test>) -> &mut Self {
 		self.gensis_candidates = candidates;
+		self
+	}
+
+	pub fn balance_rate(&mut self, balance_rate: u32) -> &mut Self {
+		self.balance_rate = balance_rate;
 		self
 	}
 
@@ -210,7 +220,7 @@ impl TestExtBuilder {
 		self
 	}
 
-	pub fn validator_commission(&mut self, validator_commission: u8) -> &mut Self {
+	pub fn validator_commission(&mut self, validator_commission: u32) -> &mut Self {
 		ValidatorCommission::set(validator_commission);
 		self
 	}
@@ -220,7 +230,7 @@ impl TestExtBuilder {
 		self
 	}
 
-	pub fn delegator_commission(&mut self, delegator_commission: u8) -> &mut Self {
+	pub fn delegator_commission(&mut self, delegator_commission: u32) -> &mut Self {
 		DelegatorCommission::set(delegator_commission);
 		self
 	}
@@ -273,6 +283,7 @@ impl TestExtBuilder {
 
 		let _ = pallet_dpos::GenesisConfig::<Test> {
 			genesis_candidates: self.gensis_candidates.clone(),
+			balance_rate: self.balance_rate,
 		}
 		.assimilate_storage(&mut storage);
 		sp_io::TestExternalities::from(storage)

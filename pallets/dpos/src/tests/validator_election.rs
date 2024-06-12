@@ -34,33 +34,75 @@ fn should_ok_distribute_reward_for_block_production_in_one_epoch() {
 	let mut ext = TestExtBuilder::default();
 
 	// Ensure that the candiddate is registered with valid bond
-	ext.epoch_duration(TEST_BLOCKS_PER_EPOCH).build().execute_with(|| {
-		let active_validator_set = Dpos::select_active_validator_set();
-		let mut validator_rewards = vec![0; active_validator_set.len()];
-		// Now we want to run for a certain number of rounds
-		let rounds = 1;
-		for _ in 0..rounds * TEST_BLOCKS_PER_EPOCH {
-			let maybe_author = find_author();
-			for (indx, (active_validator, total_staked)) in active_validator_set.iter().enumerate()
-			{
-				let validator_reward = author_reward(*total_staked);
-				assert!(validator_reward <= *total_staked);
-				if active_validator == &maybe_author.unwrap() {
-					validator_rewards[indx] += validator_reward;
-					assert_eq!(
-						Balances::free_balance(maybe_author.unwrap()),
-						TEN_THOUSAND_BALANCE - total_staked + validator_rewards[indx]
-					);
-				} else {
-					assert_eq!(
-						Balances::free_balance(active_validator),
-						TEN_THOUSAND_BALANCE - total_staked + validator_rewards[indx]
-					);
+	ext.balance_rate(1000)
+		.epoch_duration(TEST_BLOCKS_PER_EPOCH)
+		.build()
+		.execute_with(|| {
+			let active_validator_set = Dpos::select_active_validator_set();
+			let mut validator_rewards = vec![0; active_validator_set.len()];
+			// Now we want to run for a certain number of rounds
+			let rounds = 1;
+			for _ in 0..rounds * TEST_BLOCKS_PER_EPOCH {
+				let maybe_author = find_author();
+				for (indx, (active_validator, total_staked)) in
+					active_validator_set.iter().enumerate()
+				{
+					let validator_reward = author_reward(*total_staked);
+					assert!(validator_reward <= *total_staked);
+					if active_validator == &maybe_author.unwrap() {
+						validator_rewards[indx] += validator_reward;
+						assert_eq!(
+							Balances::free_balance(maybe_author.unwrap()),
+							TEN_THOUSAND_BALANCE - total_staked + validator_rewards[indx]
+						);
+					} else {
+						assert_eq!(
+							Balances::free_balance(active_validator),
+							TEN_THOUSAND_BALANCE - total_staked + validator_rewards[indx]
+						);
+					}
 				}
+				ext.next_block();
 			}
-			ext.next_block();
-		}
-	});
+		});
+}
+
+#[test]
+fn should_ok_distribute_reward_with_different_balance_rate() {
+	let mut ext = TestExtBuilder::default();
+
+	// Ensure that the candiddate is registered with valid bond
+	ext.balance_rate(1000)
+		.epoch_duration(TEST_BLOCKS_PER_EPOCH)
+		.build()
+		.execute_with(|| {
+			let active_validator_set = Dpos::select_active_validator_set();
+			let mut validator_rewards = vec![0; active_validator_set.len()];
+			// Now we want to run for a certain number of rounds
+			let rounds = 1;
+			for _ in 0..rounds * TEST_BLOCKS_PER_EPOCH {
+				let maybe_author = find_author();
+				for (indx, (active_validator, total_staked)) in
+					active_validator_set.iter().enumerate()
+				{
+					let validator_reward = author_reward(*total_staked);
+					assert!(validator_reward <= *total_staked);
+					if active_validator == &maybe_author.unwrap() {
+						validator_rewards[indx] += validator_reward;
+						assert_eq!(
+							Balances::free_balance(maybe_author.unwrap()),
+							TEN_THOUSAND_BALANCE - total_staked + validator_rewards[indx]
+						);
+					} else {
+						assert_eq!(
+							Balances::free_balance(active_validator),
+							TEN_THOUSAND_BALANCE - total_staked + validator_rewards[indx]
+						);
+					}
+				}
+				ext.next_block();
+			}
+		});
 }
 
 #[test]

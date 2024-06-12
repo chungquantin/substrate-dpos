@@ -1,7 +1,7 @@
 use crate::{mock::*, *};
 use constants::*;
 use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
-use tests::ros;
+use tests::{ros, test_helpers};
 use types::{CandidateDetail, DelegationInfo};
 
 #[test]
@@ -24,7 +24,7 @@ fn should_failed_over_range_delegate_amount() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			assert_noop!(
 				Dpos::delegate_candidate(ros(ACCOUNT_4.id), candidate.id, 100),
@@ -44,12 +44,12 @@ fn should_fail_delegate_too_many_candidates() {
 		.max_delegate_count(5)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_1.id), 5));
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_2.id), 40));
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_3.id), 5));
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_4.id), 40));
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_5.id), 40));
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_6.id), 40));
+			test_helpers::register_new_candidate(CANDIDATE_1.id, CANDIDATE_1.balance, 5);
+			test_helpers::register_new_candidate(CANDIDATE_2.id, CANDIDATE_2.balance, 40);
+			test_helpers::register_new_candidate(CANDIDATE_3.id, CANDIDATE_3.balance, 5);
+			test_helpers::register_new_candidate(CANDIDATE_4.id, CANDIDATE_4.balance, 40);
+			test_helpers::register_new_candidate(CANDIDATE_5.id, CANDIDATE_5.balance, 40);
+			test_helpers::register_new_candidate(CANDIDATE_6.id, CANDIDATE_6.balance, 40);
 
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_1.id, 200));
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_2.id, 200));
@@ -64,20 +64,6 @@ fn should_fail_delegate_too_many_candidates() {
 }
 
 #[test]
-fn should_ok_get_invalid_candidate() {
-	let mut ext = TestExtBuilder::default();
-	ext.genesis_candidates(vec![])
-		.min_candidate_bond(5)
-		.min_delegate_amount(101)
-		.build()
-		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_2.id), 5));
-			assert_ok!(Dpos::register_as_candidate(ros(ACCOUNT_3.id), 40));
-			assert_eq!(CandidatePool::<Test>::get(ACCOUNT_4.id), None);
-		});
-}
-
-#[test]
 fn should_ok_delegate_candidate_successfully() {
 	let mut ext = TestExtBuilder::default();
 	let candidate = ACCOUNT_3;
@@ -86,15 +72,7 @@ fn should_ok_delegate_candidate_successfully() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
-			assert_eq!(
-				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail {
-					bond: 40,
-					total_delegations: 0,
-					status: types::ValidatorStatus::Online
-				})
-			);
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -134,15 +112,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 		.min_delegate_amount(101)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
-			assert_eq!(
-				CandidatePool::<Test>::get(candidate.id),
-				Some(CandidateDetail {
-					bond: 40,
-					total_delegations: 0,
-					status: types::ValidatorStatus::Online
-				})
-			);
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -222,15 +192,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			let (candidate_1, candidate_2, candidate_3) = (ACCOUNT_3, ACCOUNT_4, ACCOUNT_5);
 			let (delegated_amount_1, delegated_amount_2, delegated_amount_3) = (200, 100, 150);
 
-			assert_ok!(Dpos::register_as_candidate(ros(candidate_1.id), 40));
-			assert_eq!(
-				CandidatePool::<Test>::get(candidate_1.id),
-				Some(CandidateDetail {
-					bond: 40,
-					total_delegations: 0,
-					status: types::ValidatorStatus::Online
-				})
-			);
+			test_helpers::register_new_candidate(candidate_1.id, candidate_1.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -261,7 +223,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			ext.run_to_block(10);
 
 			// Delegate candidate 2
-			assert_ok!(Dpos::register_as_candidate(ros(candidate_2.id), 70));
+			test_helpers::register_new_candidate(candidate_2.id, candidate_2.balance, 70);
 			assert_ok!(Dpos::delegate_candidate(
 				ros(ACCOUNT_6.id),
 				candidate_2.id,
@@ -300,7 +262,7 @@ fn should_ok_one_delegator_multiple_candidates_successfully() {
 			ext.run_to_block(100);
 
 			// Delegate candidate 3
-			assert_ok!(Dpos::register_as_candidate(ros(candidate_3.id), 70));
+			test_helpers::register_new_candidate(candidate_3.id, candidate_3.balance, 70);
 			assert_ok!(Dpos::delegate_candidate(
 				ros(ACCOUNT_6.id),
 				candidate_3.id,
@@ -355,7 +317,7 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 			let (delegator_1, delegator_2, delegator_3) = (ACCOUNT_4, ACCOUNT_5, ACCOUNT_6);
 			let (delegated_amount_1, delegated_amount_2, delegated_amount_3) = (100, 150, 150);
 
-			assert_ok!(Dpos::register_as_candidate(ros(candidate.id), 40));
+			test_helpers::register_new_candidate(candidate.id, candidate.balance, 40);
 
 			ext.run_to_block(5);
 
@@ -501,8 +463,8 @@ fn should_ok_direct_delegation() {
 		.max_delegate_count(1)
 		.build()
 		.execute_with(|| {
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_1.id), 5));
-			assert_ok!(Dpos::register_as_candidate(ros(CANDIDATE_2.id), 40));
+			test_helpers::register_new_candidate(CANDIDATE_1.id, CANDIDATE_1.balance, 5);
+			test_helpers::register_new_candidate(CANDIDATE_2.id, CANDIDATE_2.balance, 40);
 
 			// With direct delegation, we can't delegate more than one candidate
 			assert_ok!(Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_1.id, 200));
