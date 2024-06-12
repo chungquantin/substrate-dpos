@@ -23,9 +23,10 @@ mod benchmarking;
 // TODO add weight & return weight with DispatchResultWithPostInfo
 // TODO remove pallet_authorship
 // TODO Writing benchmark code
-// TODO considering extracting reward from block fee
+// TODO test the delegator reward
+// TODO add force_set_balance_rate(root_origin, new_balance_rate)
 // TODO exclude the offline validator from the active set
-// TODO algorithm for reward distribution
+// TODO consider improving the sorting algorithm
 // TODO add simulation test for reward distribution
 // TODO add integrity testing
 // TODO add documentation
@@ -63,7 +64,7 @@ pub mod pallet {
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_authorship::Config {
+	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Type to access the Balances Pallet.
@@ -143,6 +144,10 @@ pub mod pallet {
 		/// Overarching hold reason. Our `HoldReason` below will become a part of this "Outer Enum"
 		/// thanks to the `#[runtime]` macro.
 		type RuntimeHoldReason: From<HoldReason>;
+
+		/// Find the author of a block. A fake provide for this type is provided in the runtime. You
+		/// can use a similar mechanism in your tests.
+		type FindAuthor: FindAuthor<Self::AccountId>;
 	}
 
 	/// Mapping the validator ID with the reigstered candidate detail
@@ -1016,9 +1021,7 @@ pub mod pallet {
 		pub fn find_author() -> Option<T::AccountId> {
 			// If you want to see a realistic example of the `FindAuthor` interface, see
 			// `pallet-authorship`.
-			<T as pallet_authorship::Config>::FindAuthor::find_author::<'_, Vec<_>>(
-				Default::default(),
-			)
+			T::FindAuthor::find_author::<'_, Vec<_>>(Default::default())
 		}
 	}
 }

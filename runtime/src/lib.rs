@@ -229,11 +229,7 @@ impl pallet_dpos::Config for Runtime {
 	type MinDelegateAmount = MinDelegateAmount;
 	type AuthorCommission = ValidatorCommission;
 	type DelegatorCommission = DelegatorCommission;
-}
-
-impl pallet_authorship::Config for Runtime {
 	type FindAuthor = BlockAuthor;
-	type EventHandler = ();
 }
 
 /// The signed extensions that are added to the runtime.

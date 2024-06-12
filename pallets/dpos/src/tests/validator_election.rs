@@ -12,7 +12,7 @@ fn author_reward(total_staked: Balance) -> Balance {
 }
 
 fn find_author() -> Option<AccountId> {
-	<Test as pallet_authorship::Config>::FindAuthor::find_author::<Vec<_>>(Default::default())
+	<mock::Test as pallet::Config>::FindAuthor::find_author::<Vec<_>>(Default::default())
 }
 
 #[test]
@@ -113,10 +113,7 @@ fn should_ok_round_robin_style_return_author_in_test() {
 		let rounds = 1;
 
 		for _ in 0..rounds * TEST_BLOCKS_PER_EPOCH {
-			let maybe_author = <Test as pallet_authorship::Config>::FindAuthor::find_author::<Vec<_>>(
-				Default::default(),
-			);
-
+			let maybe_author = find_author();
 			assert_ne!(maybe_author, None);
 
 			// Every round, there must be a validator found that is in the active validator set

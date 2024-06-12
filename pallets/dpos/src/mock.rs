@@ -135,11 +135,6 @@ impl ReportNewValidatorSet<AccountId> for DoNothing {
 	fn report_new_validator_set(_: Vec<AccountId>) {}
 }
 
-impl pallet_authorship::Config for Test {
-	type FindAuthor = RoundRobinAuthor;
-	type EventHandler = ();
-}
-
 impl pallet_dpos::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type NativeBalance = Balances;
@@ -159,6 +154,7 @@ impl pallet_dpos::Config for Test {
 	type MinDelegateAmount = MinDelegateAmount;
 	type AuthorCommission = ValidatorCommission;
 	type DelegatorCommission = DelegatorCommission;
+	type FindAuthor = RoundRobinAuthor;
 }
 
 pub struct TestExtBuilder {
