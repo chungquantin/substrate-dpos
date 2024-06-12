@@ -2,7 +2,7 @@ use crate::{
 	self as pallet_dpos,
 	constants::{AccountId, Balance, *},
 	types::CandidateSet,
-	BalanceOf, ReportNewValidatorSet,
+	BalanceOf, OnSlashHandler, ReportNewValidatorSet,
 };
 use frame_support::{
 	derive_impl, parameter_types,
@@ -134,6 +134,9 @@ pub struct DoNothing;
 impl ReportNewValidatorSet<AccountId> for DoNothing {
 	fn report_new_validator_set(_: Vec<AccountId>) {}
 }
+impl OnSlashHandler<AccountId, Balance> for DoNothing {
+	fn on_slash(_who: &AccountId, _balance: Balance) {}
+}
 
 impl pallet_dpos::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
@@ -155,6 +158,7 @@ impl pallet_dpos::Config for Test {
 	type AuthorCommission = ValidatorCommission;
 	type DelegatorCommission = DelegatorCommission;
 	type FindAuthor = RoundRobinAuthor;
+	type OnSlashHandler = DoNothing;
 }
 
 pub struct TestExtBuilder {

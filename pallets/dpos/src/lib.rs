@@ -42,7 +42,7 @@ pub mod pallet {
 		sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
 		traits::{
 			fungible::{self, Mutate, MutateHold},
-			tokens::Precision,
+			tokens::{Fortitude, Precision},
 			FindAuthor,
 		},
 		Twox64Concat,
@@ -53,6 +53,10 @@ pub mod pallet {
 
 	pub trait ReportNewValidatorSet<AccountId> {
 		fn report_new_validator_set(_new_set: Vec<AccountId>) {}
+	}
+
+	pub trait OnSlashHandler<AccountId, Balance> {
+		fn on_slash(_who: &AccountId, _amount: Balance) {}
 	}
 
 	pub type BalanceOf<T> = <<T as Config>::NativeBalance as fungible::Inspect<
@@ -148,6 +152,9 @@ pub mod pallet {
 		/// Find the author of a block. A fake provide for this type is provided in the runtime. You
 		/// can use a similar mechanism in your tests.
 		type FindAuthor: FindAuthor<Self::AccountId>;
+
+		/// The handler for on slashed action when validator misbehaves
+		type OnSlashHandler: OnSlashHandler<Self::AccountId, BalanceOf<Self>>;
 	}
 
 	/// Mapping the validator ID with the reigstered candidate detail
@@ -282,6 +289,10 @@ pub mod pallet {
 		CandidateLessBondStaked {
 			candidate_id: T::AccountId,
 			deducted_bond: BalanceOf<T>,
+		},
+		CandidateBondSlashed {
+			candidate_id: T::AccountId,
+			slashed_amount: BalanceOf<T>,
 		},
 		CandidateRegistrationRemoved {
 			candidate_id: T::AccountId,
@@ -710,7 +721,7 @@ pub mod pallet {
 			sorted_candidates.into_iter().take(usize_total_in_active_set).collect()
 		}
 
-		pub fn get_candidate_delegations() -> ActiveValidatorSet<T> {
+		pub fn get_candidate_delegations() -> CandidateSet<T> {
 			CandidatePool::<T>::iter()
 				.map(|(candidate, candidate_detail)| (candidate, candidate_detail.total()))
 				.collect()
@@ -1015,6 +1026,39 @@ pub mod pallet {
 			Percent::from_rational(percent, 1000) *
 				Percent::from_rational(BalanceRate::<T>::get(), 1000) *
 				total
+		}
+
+		// Slashing the candidate bond, if under the minimum bond, candidate will be removed from
+		// the pool
+		pub fn do_slash(who: T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
+			ensure!(!Self::is_candidate(&who), Error::<T>::CandidateAlreadyExist);
+
+			let left_amount = T::NativeBalance::burn_held(
+				&HoldReason::CandidateBondReserved.into(),
+				&who,
+				amount,
+				Precision::BestEffort,
+				Fortitude::Force,
+			)?;
+
+			let _ = T::OnSlashHandler::on_slash(&who, amount);
+
+			let mut candidate_detail = Self::get_candidate(&who)?;
+			if left_amount < T::MinCandidateBond::get() {
+				return Self::deregister_candidate_inner(who);
+			}
+
+			candidate_detail.update_bond(left_amount);
+			CandidatePool::<T>::set(&who, Some(candidate_detail));
+
+			Self::release_candidate_bonds(&who, amount)?;
+
+			Self::deposit_event(Event::CandidateBondSlashed {
+				candidate_id: who,
+				slashed_amount: amount,
+			});
+
+			Ok(())
 		}
 
 		// A function to get you an account id for the current block author.

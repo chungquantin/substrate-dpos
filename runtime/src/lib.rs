@@ -209,6 +209,11 @@ impl pallet_dpos::ReportNewValidatorSet<AccountId> for StoreNewValidatorSet {
 	}
 }
 
+pub struct OnSlashHandler;
+impl pallet_dpos::OnSlashHandler<AccountId, Balance> for OnSlashHandler {
+	fn on_slash(_who: &AccountId, _amount: Balance) {}
+}
+
 /// Configure the pallet-dpos in pallets/dpos.
 impl pallet_dpos::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -220,6 +225,7 @@ impl pallet_dpos::Config for Runtime {
 	type MinActiveValidators = MinActiveValidators;
 	type ReportNewValidatorSet = StoreNewValidatorSet;
 	type WeightInfo = ();
+	type OnSlashHandler = OnSlashHandler;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type MaxDelegateCount = MaxDelegateCount;
 	type DelayDeregisterCandidateDuration = DelayDeregisterCandidateDuration;

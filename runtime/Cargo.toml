@@ -27,7 +27,6 @@ pallet-transaction-payment = { version = "34.0.0", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = "34.0.0", default-features = false }
 
 pallet-assets = { version = "35.0.0", default-features = false }
-pallet-authorship = { workspace = true }
 
 # genesis builder that allows us to interact with runtime genesis config
 sp-genesis-builder = { version = "0.13.0", default-features = false }

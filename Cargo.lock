@@ -1988,21 +1988,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-authorship"
-version = "34.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccd3d28c92dff65f0d198e88e3689f5282903138102bff84cc3794a1426665fc"
-dependencies = [
- "frame-support",
- "frame-system",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "scale-info",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-balances"
 version = "35.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2028,7 +2013,6 @@ dependencies = [
  "frame-system",
  "lazy_static",
  "log",
- "pallet-authorship",
  "pallet-balances",
  "pallet-session",
  "pallet-timestamp",
@@ -2222,7 +2206,6 @@ name = "pba-runtime"
 version = "0.1.0"
 dependencies = [
  "pallet-assets",
- "pallet-authorship",
  "pallet-balances",
  "pallet-dpos",
  "pallet-sudo",
