@@ -54,9 +54,6 @@ mod benchmarking;
 // TODO polkadot_sdk_frame
 // TODO DefaultTestConfig
 // TODO video & diagrams
-// TODO documentation
-// TODO add weight & return weight with DispatchResultWithPostInfo
-// TODO Writing benchmark code
 // TODO integrate with pallet_session
 #[frame_support::pallet]
 pub mod pallet {
@@ -1180,14 +1177,18 @@ pub mod pallet {
 		/// Filters top staked validators for the active set based on their stake (bond + total
 		/// delegations), ensuring the set does not exceed the configured maximum.
 		pub(crate) fn select_active_validator_set() -> CandidateDelegationSet<T> {
+			// If the number of candidates is below the threshold for active set, network won't
+			// function
+			if CandidatePool::<T>::count() < T::MinActiveValidators::get() {
+				return vec![];
+			}
 			let total_in_active_set = T::MaxActiveValidators::get();
 			if CandidatePool::<T>::count() < total_in_active_set {
 				// If the number of candidates does not reached the threshold, return all
-				return Self::get_candidate_delegations();
+				return Self::get_online_candidate_set();
 			}
 			// Collect candidates with their total stake (bond + total delegations)
-			let mut sorted_candidates: CandidateDelegationSet<T> =
-				Self::get_candidate_delegations();
+			let mut sorted_candidates: CandidateDelegationSet<T> = Self::get_online_candidate_set();
 
 			// Sort candidates by their total stake in descending order
 			sorted_candidates.sort_by_key(|&(_, _, total_stake)| Reverse(total_stake));
@@ -1198,10 +1199,14 @@ pub mod pallet {
 		}
 
 		/// Get the candidate information associated with the delegations of the candidate
-		pub fn get_candidate_delegations() -> CandidateDelegationSet<T> {
+		/// Offline candidates can't participate into the active validator set until they turn back
+		/// to online
+		pub fn get_online_candidate_set() -> CandidateDelegationSet<T> {
 			CandidatePool::<T>::iter()
-				.map(|(candidate, candidate_detail)| {
-					(candidate, candidate_detail.bond, candidate_detail.total())
+				.filter_map(|(candidate, candidate_detail)| match candidate_detail.status {
+					ValidatorStatus::Online =>
+						Some((candidate, candidate_detail.bond, candidate_detail.total())),
+					ValidatorStatus::Offline => None,
 				})
 				.collect()
 		}
@@ -1496,9 +1501,9 @@ pub mod pallet {
 		}
 
 		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u32) -> BalanceOf<T> {
-			Percent::from_rational(percent, 100)
-				* Percent::from_rational(BalanceRate::<T>::get(), 1000)
-				* total
+			Percent::from_rational(percent, 100) *
+				Percent::from_rational(BalanceRate::<T>::get(), 1000) *
+				total
 		}
 
 		/// Captures an epoch snapshot containing information about the active validators and their

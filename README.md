@@ -27,6 +27,7 @@ provides the ability to switch between **Direct Delegation mode** and **Multi De
 - `Commission`: The percentage that block author and its delegator receive for a successfully produced block.
 - `Slash`: The punishment of an active validator if they misbehave.
 - `Epoch`: A predefined period during which the set of active validators remains fixed. At the end of each epoch, a new set of validators can be elected based on the current delegations.
+- `Bond`: Staked tokens are bonded, meaning they are locked for a certain period, which secures the network and aligns incentives.
 
 ## Goals
 
@@ -72,7 +73,7 @@ cargo doc
 - `MaxActiveValidators`: The maximum number of candidates in the active validator set. This parameter is used for selecting the top N validators from the candidate pool.
 - `MinActiveValidators`: The minimum number of candidates in the active validator set. If there are not enough active validators, block production won't happen until there are enough validators, ensuring network stability.
 - `MaxDelegateCount`: The maximum number of candidates that delegators can delegate their tokens to.
-- `MinCandidateBond`: The minimum number of stake that a candidate needs to provide to register in the candidate pool.
+- `MinCandidateBond`: The minimum number of bond that a candidate needs to provide to register in the candidate pool.
 - `MinDelegateAmount`: The minimum amount of delegated tokens that a delegator needs to provide for one candidate.
 - `EpochDuration`: A predefined period during which the set of active validators remains fixed. At the end of each epoch, a new set of validators can be elected based on the current delegations.
 - `DelayDeregisterCandidateDuration`: Number of blocks required for the `deregister_candidate` method to work.
@@ -103,47 +104,83 @@ cargo doc
 Before being qualified for the validator election round running every epoch `EpochDuration`, `Candidate` is required to register with a specific amount (higher than `MinCandidateBond`) of tokens.
 
 - One candidate can't register twice `CandidateAlreadyExist`.
-- Tokens are held by the network to secure the position of the candidate in the pool.
+- Tokens are held by the network to secure the position of the candidate in the pool. Reason why tokens of the candidate are held instead of freezed is because `HOLD` is better if we need to slash the candidate held amount later in the future for misbehaviours.
+
+  > From Polkadot SDK Docks: "_Holds are designed to be infallibly slashed, meaning that any logic using a Freeze must handle the possibility of the frozen amount being reduced, potentially to zero._"
+
 - Candidate can stake more via `candidate_bond_more` to increase the position in the validator election.
-- Candidate can also stake less via `candidate_bond_less` to decrease the amount of bond held. However, if the candidate bond is below a `MinCandidateBond`, candidate will be removed automatically by the network.
+- Candidate can also stake less via `candidate_bond_less` to decrease the amount of bond held. However, if the candidate bond is below a `MinCandidateBond`, candidate will be removed automatically by the network. And there is a mechanism to handle the unclaimed reward points of the leaved candidate.
 
 #### Candidate Request to Leave Pool
 
-- Request to leave the candidate pool will return back the tokens to the candidate. However, this won't happen immediately but will create a request delayed for `DelayDeregisterCandidateDuration`.
-- Leaving the pool intentionally instead of being slashed does not restrict the candidate from registering later in the pool.
+1. Create a Delay Action Request to deregister
+
+   - Request to leave the candidate pool will return back the held tokens to the candidate. However, this won't happen immediately but will create a request delayed for `DelayDeregisterCandidateDuration`.
+
+   To prevent malicious actions from the candidates that potentially leading to the Sybil-attack, the request will take `DelayDeregisterCandidateDuration` number of blocks before it can be executed.
+
+   - Requests are stored in the `DelayActionRequests`.
+   - To execute the delay action request, candidate has to call the dispatchable function. By this way, this gives the candidate a chance to cancel the request to stay in the pool using the pallet call `cancel_delay_deregister_candidate`
+
+2. Execute the delay request after the delay duration `DelayDeregisterCandidateDuration`
+   - Leaving the pool intentionally instead of being slashed does not restrict the candidate from registering later in the pool.
+   - Token holders who delegated the candidates will be returned back all the delegated tokens for the leaved candidate.
+
+**Offline Status**: Currently, in the pallet implementation, when a candidate requests to leave a pool, their `ValidatorStatus` field within `CandidateDetail` is switched to `ValidatorStatus::Offline`. Offline validators can still produce blocks and receive rewards in the current epoch but they will be excluded from the Active Validator Set until their status is turned back to Online.
+
+If the request is canceled, the validator status is flipped back to `ValidatorStatus::Online`.
 
 #### Delegation & Undelegation
 
-- Delay unstaking
-- Delay deregister
-- Reward distribution
+- Token holders can only delegate registered candidates. The delegated amount must be above a `MinDelegateAmount`. This ensure that the candidate won't receive too many pennies delegation. In this version, `MinDelegateAmount` is fixed by the network.
+
+**NOTE:** In this pallet, there is an attribute called `MaxDelegateCount` which can be set to `1` if we want it to be _Direct Delegated Proof of Stake_. If the value is set to be higher than one, it is a normal _Delegated Proof of Stake_ system that allows delegations on multiple candidates.
+
+- **Delay Undelegation**: Similar to the delay deregistering, undelegate from the candidate also require the delegator to submit a delayed request to the network and wait for `DelayUndelegateCandidateDuration` before it can be executed.
+
+This delay period ensures that the network remains stable and secure by preventing sudden and large-scale withdrawals, which could potentially destabilize the system.
 
 #### Slashing candidate
 
+Candidate who misbehaves will be slashed from the network and the handler hook that the runtime can interact with is `OnSlashHandler`. Slashing mechanism is configured by other pallets.
+
+- The `do_slash` in the pallet implementation will slash a held amount of the candidate based on the provided amount from the external system.
+- If the left amount after being slashed is under the threshold `MinCandidateStake`, the canddiate will be removed completely from the pool following the logic mentioned in the **"Candidate Request to Leave Pool"** section
+
 #### Validator Election
 
-- How to selelct top active candidators?
-- What I implement and what can be improvied
-- Below the minimum active validators
-- Misbehaves
+- Top validators under `MaxActiveValidators` and above `MinAciveValidators` are selected based on the total amount of delegated amount and the total amount they bonded.
+- If there is not enough validators (under the configured `MinActiveValidators`), the active validator set is empty. By this way, there is no block produced and no reward distributed.
+- In this pallet, the top validators will be sorted out and selected at the beginning of the new epoch.
+- Offline validators won't be included in the validator election.
+- Non-selected candidates in the pool will stay inactive during the epoch and don't produce a new block and receive rewards during the epoch.
 
 #### Reward Distribution
 
-The reward will be paid based on the bond and delegations
+- Reward for every block produced won't be distributed automatically but requires the validators and delegators to claim it themself. There is no deadline for claiming the reward.
+- To distribute the reward, the network capture snapshot of the active validator set with its bond and the delegations of those elected validators at the beginning of an epoch in `LastEpochSnapshot`. 
+- The purpose of the `EpochSnapshot` is to avoid state of the validators and delegators change in the middle of the epoch. By that way, the reward is calculated using the amount caputred in the snapshot.
+- Some parameters are used in the **Reward calculation**:
+  - `BalanceFactor` is used for controlling the inflation rate via reward of the delegators and validators.
+  - `AuthorCommission` and `DelegatorCommission` are the two commission percentages configured by the `ConfigControllerOrigin` to use for reward calculation. 
 
 ### Further Improvements
 
-#### Slashing will prevent candidate from joining the network without free participation
+#### [Delay Action] Limited number of accepted offline epochs
 
-#### Better reward distribution
+The delay action feature can be enhanced by limiting the number of epochs a validator node can remain offline. Allowing a validator node to stay offline indefinitely without being removed can destabilize the network by allocating resources to an inactive node.
+
+- A new config type `MaxOfflineEpochs` and a new logic for removing the deprecated offline nodes can be added to implement this feature.
+
+#### [Slashing] Prevent candidate from joining the network without free participation after being slashed
+
+#### [Reward distribution]
 
 #### Multi delegation instead of direct delegation
 
 #### Reconfigurable network parameters
 
 #### Prevent cascading deletion when a Candidate is removed
-
-#### Mark the validator as offline upon its request to leave the pool.
 
 ## Game Theory & Economic Model
 
@@ -230,13 +267,16 @@ parameter_types! {
 cd ./runtime
 
 # Build the runtime
+
 cargo build --release
 
 # Generate chain-spec
+
 chain-spec-builder create --chain-name DPOSChain -r ../target/release/wbuild/pba-runtime/pba_runtime.wasm default
 ```
 
 ## How to run `omni-node`?
+
 ```
 pba-omni-node --chain ./runtime/chain_spec.json --tmp
 ```
