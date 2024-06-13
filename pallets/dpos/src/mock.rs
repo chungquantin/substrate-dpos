@@ -118,8 +118,10 @@ impl FindAuthor<AccountId> for RoundRobinAuthor {
 		I: 'a + IntoIterator<Item = ([u8; 4], &'a [u8])>,
 	{
 		let current_active_validators = Dpos::active_validators();
-		let active_validator_ids =
-			current_active_validators.iter().map(|(id, _)| *id).collect::<Vec<AccountId>>();
+		let active_validator_ids = current_active_validators
+			.iter()
+			.map(|(id, _, _)| *id)
+			.collect::<Vec<AccountId>>();
 
 		if active_validator_ids.len() == 0 {
 			return None;
@@ -202,6 +204,11 @@ impl TestExtBuilder {
 
 	pub fn max_candidates(&mut self, max_candidates: u32) -> &mut Self {
 		MaxCandidates::set(max_candidates);
+		self
+	}
+
+	pub fn min_active_validators(&mut self, min_active_validators: u32) -> &mut Self {
+		MinActiveValidators::set(min_active_validators);
 		self
 	}
 

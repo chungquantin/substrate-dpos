@@ -17,31 +17,25 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// TODO should we freeze or hold the delegated amount?
-// TODO asking about the lockable currency trait
-
 // TODO add weight & return weight with DispatchResultWithPostInfo
-// TODO remove pallet_authorship
 // TODO Writing benchmark code
 // TODO test the delegator reward
 // TODO add force_set_balance_rate(root_origin, new_balance_rate)
-// TODO exclude the offline validator from the active set
 // TODO consider improving the sorting algorithm
-// TODO add simulation test for reward distribution
 // TODO add integrity testing
 // TODO add documentation
 // TODO integrate with pallet_session
-// TODO migration: the CandidateDelegators storage into CandidateDelegations
 // TODO optional: consider adding bags list
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::{types::*, weights::WeightInfo};
+	use frame_support::traits::fungible::Mutate;
 	use frame_support::{
 		dispatch::DispatchResult,
-		pallet_prelude::*,
+		pallet_prelude::{ValueQuery, *},
 		sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
 		traits::{
-			fungible::{self, Mutate, MutateHold},
+			fungible::{self, MutateHold},
 			tokens::{Fortitude, Precision},
 			FindAuthor,
 		},
@@ -49,6 +43,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
 	use sp_runtime::{traits::One, BoundedVec, Percent, Saturating};
+	use sp_std::collections::btree_map::BTreeMap;
 	use sp_std::{cmp::Reverse, collections::btree_set::BTreeSet, prelude::*, vec::Vec};
 
 	pub trait ReportNewValidatorSet<AccountId> {
@@ -163,18 +158,26 @@ pub mod pallet {
 	pub type CandidatePool<T: Config> =
 		CountedStorageMap<_, Twox64Concat, T::AccountId, CandidateDetail<T>, OptionQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn epoch_info)]
-	pub type CurrentEpochInfo<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
 	/// Selected validators for the current epoch
 	#[pallet::storage]
 	#[pallet::getter(fn active_validators)]
 	pub type CurrentActiveValidators<T: Config> = StorageValue<
 		_,
-		BoundedVec<(T::AccountId, BalanceOf<T>), <T as Config>::MaxActiveValidators>,
+		BoundedVec<(T::AccountId, BalanceOf<T>, BalanceOf<T>), <T as Config>::MaxActiveValidators>,
 		ValueQuery,
 	>;
+
+	/// Unbounded storage in safe because the epoch snapshot just stores Vec values the
+	/// BoundedVector
+	#[pallet::storage]
+	#[pallet::unbounded]
+	#[pallet::getter(fn last_epoch_snapshot)]
+	pub type LastEpochSnapshot<T: Config> = StorageValue<_, EpochSnapshot<T>, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn reward_points)]
+	pub type RewardPoints<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
 	/// The number of candidates that delegators delegated to
 	#[pallet::storage]
@@ -261,10 +264,14 @@ pub mod pallet {
 
 			BalanceRate::<T>::put(self.balance_rate);
 
+			let active_validator_set = Pallet::<T>::select_active_validator_set().to_vec();
 			CurrentActiveValidators::<T>::put(
-				BoundedVec::try_from(Pallet::<T>::select_active_validator_set().to_vec())
+				BoundedVec::try_from(active_validator_set.clone())
 					.expect("Exceed limit number of the validators in the active set"),
 			);
+			LastEpochSnapshot::<T>::set(Some(Pallet::<T>::get_epoch_snapshot(
+				&active_validator_set,
+			)));
 		}
 	}
 
@@ -309,11 +316,6 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 			left_delegated_amount: BalanceOf<T>,
 		},
-		CandidateElected {
-			candidate_id: T::AccountId,
-			epoch_index: BlockNumberFor<T>,
-			total_staked: BalanceOf<T>,
-		},
 		NextEpochMoved {
 			last_epoch: BlockNumberFor<T>,
 			next_epoch: BlockNumberFor<T>,
@@ -348,38 +350,38 @@ pub mod pallet {
 		}
 
 		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
+			if let Some(current_block_author) = Self::find_author() {
+				// Whenever there is a block produced, we retrieve the snapshot of the epoch
+				// The reward for validator and delegator will be calculated based on that
+				if let Some(EpochSnapshot { validators, delegations }) =
+					LastEpochSnapshot::<T>::get()
+				{
+					if let Some(total_bond) = validators.get(&current_block_author) {
+						Self::sync_validator_rewards(
+							&current_block_author,
+							&delegations,
+							total_bond,
+						);
+					}
+				}
+			}
+
 			// This is a pretty lightweight check that we do EVERY block, but then tells us when an
 			// Epoch has passed...
 			let epoch_indx = n % T::EpochDuration::get();
-			let active_validator_set = Self::select_active_validator_set();
 			if epoch_indx == BlockNumberFor::<T>::zero() {
-				// CHANGE VALIDATORS LOGIC
-				// You cannot return an error here, so you have to be clever with your code...
-				for (active_validator_id, total_staked) in active_validator_set.iter() {
-					Self::deposit_event(Event::<T>::CandidateElected {
-						candidate_id: active_validator_id.clone(),
-						epoch_index: epoch_indx,
-						total_staked: *total_staked,
-					});
-				}
+				let active_validator_set = Self::select_active_validator_set();
 
 				// Update a new set of active validators
 				CurrentActiveValidators::<T>::put(
 					BoundedVec::try_from(active_validator_set.to_vec())
 						.expect("Exceed limit number of the validators in the active set"),
 				);
+				// In new epoch, we want to set the CurrentEpochSnapshot to the current dataset
+				LastEpochSnapshot::<T>::set(Some(Pallet::<T>::get_epoch_snapshot(
+					&active_validator_set,
+				)));
 			}
-
-			if let Some(current_block_author) = Self::find_author() {
-				let maybe_active_validator = active_validator_set
-					.into_iter()
-					.find(|(validator, _)| validator == &current_block_author);
-
-				if let Some((active_validator, total_staked)) = maybe_active_validator {
-					Self::distribute_reward(active_validator, total_staked);
-				}
-			}
-
 			// We return a default weight because we do not expect you to do weights for your
 			// project... Except for extra credit...
 			return Weight::default();
@@ -400,6 +402,7 @@ pub mod pallet {
 		InvalidMinimumCandidateBond,
 		NoDelayActionRequestFound,
 		ActionIsStillInDelayDuration,
+		NoClaimableRewardFound,
 		InvalidDelayActionPayload,
 		InvalidZeroAmount,
 	}
@@ -676,6 +679,22 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(13)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn claim_reward(origin: OriginFor<T>) -> DispatchResult {
+			let claimer = ensure_signed(origin)?;
+
+			let reward_points = RewardPoints::<T>::try_get(&claimer)
+				.map_err(|_| Error::<T>::NoClaimableRewardFound)?;
+			ensure!(reward_points > Zero::zero(), Error::<T>::NoClaimableRewardFound);
+
+			let _ = T::NativeBalance::mint_into(&claimer, reward_points);
+
+			RewardPoints::<T>::remove(claimer);
+
+			Ok(())
+		}
+
 		/// An example of directly updating the authorities into [`Config::ReportNewValidatorSet`].
 		#[pallet::call_index(99)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_report_new_validators())]
@@ -703,27 +722,29 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub(crate) fn select_active_validator_set() -> ActiveValidatorSet<T> {
+		pub(crate) fn select_active_validator_set() -> CandidateDelegationSet<T> {
 			let total_in_active_set = T::MaxActiveValidators::get();
 			if CandidatePool::<T>::count() < total_in_active_set {
 				// If the number of candidates does not reached the threshold, return all
 				return Self::get_candidate_delegations();
 			}
 			// Collect candidates with their total stake (bond + total delegations)
-			let mut sorted_candidates: Vec<(T::AccountId, BalanceOf<T>)> =
+			let mut sorted_candidates: CandidateDelegationSet<T> =
 				Self::get_candidate_delegations();
 
 			// Sort candidates by their total stake in descending order
-			sorted_candidates.sort_by_key(|&(_, total_stake)| Reverse(total_stake));
+			sorted_candidates.sort_by_key(|&(_, _, total_stake)| Reverse(total_stake));
 
 			// Select the top candidates based on the maximum active validators allowed
 			let usize_total_in_active_set = total_in_active_set as usize;
 			sorted_candidates.into_iter().take(usize_total_in_active_set).collect()
 		}
 
-		pub fn get_candidate_delegations() -> CandidateSet<T> {
+		pub fn get_candidate_delegations() -> CandidateDelegationSet<T> {
 			CandidatePool::<T>::iter()
-				.map(|(candidate, candidate_detail)| (candidate, candidate_detail.total()))
+				.map(|(candidate, candidate_detail)| {
+					(candidate, candidate_detail.bond, candidate_detail.total())
+				})
 				.collect()
 		}
 
@@ -1003,29 +1024,54 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub(crate) fn distribute_reward(
-			active_validator: T::AccountId,
-			total_staked: BalanceOf<T>,
-		) {
-			let _ = T::NativeBalance::mint_into(
-				&active_validator,
-				Self::calculate_reward(total_staked, T::AuthorCommission::get()),
-			);
-
-			let delegators = CandidateDelegators::<T>::get(&active_validator);
-			for delegator in delegators.iter() {
-				if let Some(delegation) = DelegationInfos::<T>::get(&delegator, &active_validator) {
-					let delegator_reward =
-						Self::calculate_reward(delegation.amount, T::DelegatorCommission::get());
-					let _ = T::NativeBalance::mint_into(&delegator, delegator_reward);
-				}
-			}
+		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u32) -> BalanceOf<T> {
+			Percent::from_rational(percent, 100)
+				* Percent::from_rational(BalanceRate::<T>::get(), 100)
+				* total
 		}
 
-		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u32) -> BalanceOf<T> {
-			Percent::from_rational(percent, 1000) *
-				Percent::from_rational(BalanceRate::<T>::get(), 1000) *
-				total
+		pub fn get_epoch_snapshot(
+			active_validator_set: &CandidateDelegationSet<T>,
+		) -> EpochSnapshot<T> {
+			let mut epoch_snapshot = EpochSnapshot::<T>::default();
+			for (active_validator_id, bond, _) in active_validator_set.to_vec().iter() {
+				epoch_snapshot.add_validator(active_validator_id.clone(), bond.clone());
+				for delegator in CandidateDelegators::<T>::get(active_validator_id) {
+					if let Some(delegation_info) =
+						DelegationInfos::<T>::get(&delegator, &active_validator_id)
+					{
+						epoch_snapshot.add_delegator(
+							delegator,
+							active_validator_id.clone(),
+							delegation_info.amount,
+						);
+					}
+				}
+			}
+			epoch_snapshot
+		}
+
+		pub fn sync_validator_rewards(
+			validator: &T::AccountId,
+			delegations: &BTreeMap<(T::AccountId, T::AccountId), BalanceOf<T>>,
+			total_bond: &BalanceOf<T>,
+		) {
+			// Calculating the new reward of the block author
+			let mut rewards = RewardPoints::<T>::get(&validator);
+			rewards = rewards
+				.saturating_add(Self::calculate_reward(*total_bond, T::AuthorCommission::get()));
+			RewardPoints::<T>::set(validator.clone(), rewards);
+
+			for ((delegator, candidate), amount) in delegations.iter() {
+				if candidate != validator {
+					continue;
+				}
+				// Calculating the new reward of the block author
+				let mut rewards = RewardPoints::<T>::get(&delegator);
+				rewards = rewards
+					.saturating_add(Self::calculate_reward(*amount, T::DelegatorCommission::get()));
+				RewardPoints::<T>::set(delegator, rewards);
+			}
 		}
 
 		// Slashing the candidate bond, if under the minimum bond, candidate will be removed from

@@ -23,4 +23,4 @@ mod test_helpers;
 #[cfg(test)]
 mod test_register_as_candidate;
 #[cfg(test)]
-mod validator_election;
+mod test_validator_election;
