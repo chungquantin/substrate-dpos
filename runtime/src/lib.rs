@@ -182,20 +182,19 @@ parameter_types! {
 	pub const DelegatorCommission : u8 = 3;
 }
 
-pub struct BlockAuthor;
-impl FindAuthor<AccountId> for BlockAuthor {
+pub struct RoundRobinAuthor;
+impl FindAuthor<AccountId> for RoundRobinAuthor {
 	fn find_author<'a, I>(_: I) -> Option<AccountId>
 	where
 		I: 'a + IntoIterator<Item = ([u8; 4], &'a [u8])>,
 	{
-		// return a random-ish block author previously reported.
-		let last_known_set = ValidatorSet::get();
-		if last_known_set.is_empty() {
+		let active_validator_ids = ValidatorSet::get();
+		if active_validator_ids.len() == 0 {
 			return None;
 		}
-
-		let index = frame_system::Pallet::<Runtime>::block_number() as usize % last_known_set.len();
-		Some(last_known_set[index].clone())
+		active_validator_ids
+			.get((System::block_number() % (active_validator_ids.len() as u32)) as usize)
+			.cloned()
 	}
 }
 
@@ -237,7 +236,7 @@ impl pallet_dpos::Config for Runtime {
 	type MinDelegateAmount = MinDelegateAmount;
 	type AuthorCommission = ValidatorCommission;
 	type DelegatorCommission = DelegatorCommission;
-	type FindAuthor = BlockAuthor;
+	type FindAuthor = RoundRobinAuthor;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type ConfigControllerOrigin = EnsureRoot<AccountId>;
 }

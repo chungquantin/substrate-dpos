@@ -50,7 +50,6 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// TODO ReportValidatorSet
 // TODO OnSlashHandler test
 // TODO polkadot_sdk_frame
 // TODO DefaultTestConfig
@@ -142,23 +141,29 @@ pub mod pallet {
 
 		/// The minimum number of stake that the candidate need to provide to register
 		/// in the candidate pool
+		#[pallet::constant]
 		type MinCandidateBond: Get<BalanceOf<Self>>;
 
 		/// The minimum number of delegated amount that the delegator need to provide for one
 		/// candidate.
+		#[pallet::constant]
 		type MinDelegateAmount: Get<BalanceOf<Self>>;
 
 		/// A predefined period during which the set of active validators remains fixed. At the end
 		/// of each epoch, a new set of validators can be elected based on the current delegations.
+		#[pallet::constant]
 		type EpochDuration: Get<BlockNumberFor<Self>>;
 
 		/// Number of blocks required for the deregister_candidate_method to work
+		#[pallet::constant]
 		type DelayDeregisterCandidateDuration: Get<BlockNumberFor<Self>>;
 
 		/// Number of blocks required for the undelegate_candidate to work
+		#[pallet::constant]
 		type DelayUndelegateCandidate: Get<BlockNumberFor<Self>>;
 
 		/// Percentage of commission that the delegator receives for their delegations
+		#[pallet::constant]
 		type DelegatorCommission: Get<u32>;
 
 		/// Percentage of commission that the active validator receives for their delegations
@@ -325,6 +330,13 @@ pub mod pallet {
 			LastEpochSnapshot::<T>::set(Some(Pallet::<T>::capture_epoch_snapshot(
 				&active_validator_set,
 			)));
+
+			let new_set = CurrentActiveValidators::<T>::get()
+				.iter()
+				.map(|(active_validator, _, _)| active_validator.clone())
+				.collect::<Vec<T::AccountId>>();
+
+			Pallet::<T>::report_new_validators(new_set);
 		}
 	}
 
@@ -339,29 +351,15 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Event emitted when there is a new candidate registered
-		CandidateRegistered {
-			candidate_id: T::AccountId,
-			initial_bond: BalanceOf<T>,
-		},
+		CandidateRegistered { candidate_id: T::AccountId, initial_bond: BalanceOf<T> },
 		/// Event emitted when candidate add more tho their total bond
-		CandidateMoreBondStaked {
-			candidate_id: T::AccountId,
-			additional_bond: BalanceOf<T>,
-		},
+		CandidateMoreBondStaked { candidate_id: T::AccountId, additional_bond: BalanceOf<T> },
 		/// Event emitted when candidates reduce their bond amount
-		CandidateLessBondStaked {
-			candidate_id: T::AccountId,
-			deducted_bond: BalanceOf<T>,
-		},
+		CandidateLessBondStaked { candidate_id: T::AccountId, deducted_bond: BalanceOf<T> },
 		/// Event emitted when candidate misbehaves
-		CandidateBondSlashed {
-			candidate_id: T::AccountId,
-			slashed_amount: BalanceOf<T>,
-		},
+		CandidateBondSlashed { candidate_id: T::AccountId, slashed_amount: BalanceOf<T> },
 		/// Event emitted when candidate is removed from the candidate pool
-		CandidateRegistrationRemoved {
-			candidate_id: T::AccountId,
-		},
+		CandidateRegistrationRemoved { candidate_id: T::AccountId },
 		/// Event emitted when candidate is delegated
 		CandidateDelegated {
 			candidate_id: T::AccountId,
@@ -376,10 +374,8 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 			left_delegated_amount: BalanceOf<T>,
 		},
-		RewardClaimed {
-			claimer: T::AccountId,
-			total_reward: BalanceOf<T>,
-		},
+		/// Event emitted when the reward is claimed
+		RewardClaimed { claimer: T::AccountId, total_reward: BalanceOf<T> },
 		/// Event emitted when candidate is delegated
 		NextEpochMoved {
 			last_epoch: u32,
@@ -447,6 +443,12 @@ pub mod pallet {
 					&active_validator_set,
 				)));
 
+				let new_set = CurrentActiveValidators::<T>::get()
+					.iter()
+					.map(|(active_validator, _, _)| active_validator.clone())
+					.collect::<Vec<T::AccountId>>();
+
+				Pallet::<T>::report_new_validators(new_set);
 				Self::move_to_next_epoch(active_validator_set);
 			}
 			// We return a default weight because we do not expect you to do weights for your
@@ -1123,7 +1125,12 @@ pub mod pallet {
 			new_set: Vec<T::AccountId>,
 		) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
-			Self::report_new_validators(new_set)
+			ensure!(
+				(new_set.len() as u32) < T::MaxCandidates::get(),
+				Error::<T>::TooManyValidators
+			);
+			Self::report_new_validators(new_set);
+			Ok(())
 		}
 	}
 
@@ -1200,13 +1207,8 @@ pub mod pallet {
 		}
 
 		/// Reporting new validator set to the external system
-		pub fn report_new_validators(new_set: Vec<T::AccountId>) -> DispatchResult {
-			ensure!(
-				(new_set.len() as u32) < T::MaxCandidates::get(),
-				Error::<T>::TooManyValidators
-			);
+		pub fn report_new_validators(new_set: Vec<T::AccountId>) {
 			T::ReportNewValidatorSet::report_new_validator_set(new_set);
-			Ok(())
 		}
 
 		/// Storage call to decrease the delegation amount of the candidate in the candidate pool
@@ -1494,9 +1496,9 @@ pub mod pallet {
 		}
 
 		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u32) -> BalanceOf<T> {
-			Percent::from_rational(percent, 100) *
-				Percent::from_rational(BalanceRate::<T>::get(), 1000) *
-				total
+			Percent::from_rational(percent, 100)
+				* Percent::from_rational(BalanceRate::<T>::get(), 1000)
+				* total
 		}
 
 		/// Captures an epoch snapshot containing information about the active validators and their
