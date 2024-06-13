@@ -32,6 +32,8 @@ fn should_failed_bond_less_all_remove_registration() {
 		System::assert_last_event(RuntimeEvent::Dpos(Event::CandidateRegistrationRemoved {
 			candidate_id: CANDIDATE_1.id,
 		}));
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -47,6 +49,8 @@ fn should_failed_bond_less_no_candidate_found() {
 			Dpos::candidate_bond_less(ros(CANDIDATE_2.id), 100),
 			Error::<Test>::CandidateDoesNotExist
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -62,6 +66,8 @@ fn should_failed_bond_less_more_than_hold_amount() {
 			Dpos::candidate_bond_less(ros(CANDIDATE_1.id), hold_amount + 200),
 			Error::<Test>::InvalidMinimumCandidateBond
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -76,6 +82,8 @@ fn should_failed_bond_less_below_threshold() {
 			Dpos::candidate_bond_less(ros(CANDIDATE_1.id), 100),
 			Error::<Test>::BelowMinimumCandidateBond
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -97,5 +105,7 @@ fn should_ok_bond_less_successful() {
 		assert_eq!(CandidatePool::<Test>::get(CANDIDATE_1.id).unwrap().total(), hold_amount - 100);
 		assert_eq!(Balances::free_balance(CANDIDATE_1.id), CANDIDATE_1.balance - hold_amount + 100);
 		assert_eq!(Balances::total_balance_on_hold(&CANDIDATE_1.id), hold_amount - 100);
+
+		Dpos::do_try_state();
 	});
 }

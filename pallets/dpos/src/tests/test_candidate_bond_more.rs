@@ -18,6 +18,8 @@ fn should_failed_bond_more_zero_value() {
 			Dpos::candidate_bond_more(ros(CANDIDATE_1.id), 0),
 			Error::<Test>::InvalidZeroAmount
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -32,6 +34,8 @@ fn should_failed_bond_more_no_candidate_found() {
 			Dpos::candidate_bond_more(ros(CANDIDATE_2.id), 100),
 			Error::<Test>::CandidateDoesNotExist
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -54,5 +58,7 @@ fn should_ok_bond_more_successful() {
 		assert_eq!(CandidatePool::<Test>::get(CANDIDATE_1.id).unwrap().total(), hold_amount + 100);
 		assert_eq!(Balances::free_balance(CANDIDATE_1.id), CANDIDATE_1.balance - hold_amount - 100);
 		assert_eq!(Balances::total_balance_on_hold(&CANDIDATE_1.id), hold_amount + 100);
+
+		Dpos::do_try_state();
 	});
 }

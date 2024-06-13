@@ -12,6 +12,8 @@ fn should_failed_no_candidate_found() {
 			Dpos::delay_undelegate_candidate(ros(ACCOUNT_3.id), ACCOUNT_1.id, 100),
 			Error::<Test>::CandidateDoesNotExist
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -23,6 +25,8 @@ fn should_failed_no_candidate_delegation_found() {
 			Dpos::delay_undelegate_candidate(ros(ACCOUNT_3.id), DEFAULT_ACTIVE_SET[0].0, 100),
 			Error::<Test>::DelegationDoesNotExist
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -60,6 +64,8 @@ fn should_failed_undelegate_below_delegated_amount() {
 			Dpos::execute_undelegate_candidate(ros(ACCOUNT_6.id)),
 			Error::<Test>::BelowMinimumDelegateAmount
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -109,6 +115,8 @@ fn should_failed_undelegate_over_amount() {
 				Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id)),
 				Error::<Test>::InvalidMinimumDelegateAmount
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -166,6 +174,8 @@ fn should_ok_undelegate_all_amount() {
 					status: types::ValidatorStatus::Online
 				})
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -229,6 +239,8 @@ fn should_ok_undelegate_partial_amount() {
 					status: types::ValidatorStatus::Online
 				})
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -338,6 +350,8 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				amount: 101,
 				left_delegated_amount: 300 - 199 - 101,
 			}));
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -374,6 +388,8 @@ fn should_failed_undelegate_while_in_delay_duration() {
 				Dpos::delay_undelegate_candidate(ros(ACCOUNT_4.id), candidate.id, 75),
 				Error::<Test>::ActionIsStillInDelayDuration
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -404,5 +420,7 @@ fn should_ok_undelegate_before_the_due_date() {
 
 			ext.run_to_block(TEST_BLOCKS_PER_EPOCH + 1);
 			assert_ok!(Dpos::execute_undelegate_candidate(ros(ACCOUNT_4.id)));
+
+			Dpos::do_try_state();
 		});
 }

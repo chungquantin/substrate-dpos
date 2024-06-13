@@ -65,6 +65,8 @@ fn should_ok_delay_deregister_sucessfully() {
 			Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &succes_acc),
 			0
 		);
+
+		Dpos::do_try_state();
 	});
 }
 
@@ -146,6 +148,8 @@ fn should_ok_delay_deregister_all_candidates_sucessfully() {
 				);
 				assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_6.id), total_delegated_amount);
 			}
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -267,6 +271,8 @@ fn should_failed_delay_deregister_candidates_before_due_date() {
 				);
 				assert_eq!(Balances::total_balance_on_hold(&ACCOUNT_6.id), total_delegated_amount);
 			}
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -353,6 +359,8 @@ fn should_ok_cancel_deregister_candidate_requests() {
 					None
 				);
 			}
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -401,6 +409,8 @@ fn should_failed_cancel_not_found_delay_action_request() {
 			Dpos::cancel_deregister_candidate_request(ros(ACCOUNT_3.id)),
 			Error::<Test>::NoDelayActionRequestFound
 		);
+
+		Dpos::do_try_state();
 	});
 }
 

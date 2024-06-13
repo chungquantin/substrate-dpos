@@ -706,8 +706,20 @@ pub mod pallet {
 
 	#[cfg(any(test, feature = "try-state"))]
 	impl<T: Config> Pallet<T> {
-		fn do_try_state() {
-			unimplemented!()
+		pub fn do_try_state() {
+			assert!(
+				BalanceRate::<T>::get() > 0 && BalanceRate::<T>::get() < 10000,
+				"Balance rate must be between 0 (0.1%) or 100 (100%)"
+			);
+
+			let mut visited: BTreeSet<T::AccountId> = BTreeSet::default();
+			for (candidate, candidate_detail) in CandidatePool::<T>::iter() {
+				assert!(
+					candidate_detail.bond >= T::MinCandidateBond::get(),
+					"Invalid bond for genesis candidate"
+				);
+				assert!(visited.insert(candidate.clone()), "Candidate registration duplicates");
+			}
 		}
 	}
 

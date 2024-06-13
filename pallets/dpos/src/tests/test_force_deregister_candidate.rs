@@ -13,6 +13,7 @@ fn should_failed_no_candidate_found() {
 			Dpos::force_deregister_candidate(RuntimeOrigin::root(), ACCOUNT_1.id),
 			Error::<Test>::CandidateDoesNotExist
 		);
+		Dpos::do_try_state();
 	});
 }
 
@@ -24,6 +25,7 @@ fn should_failed_no_delegation_found() {
 			Dpos::force_deregister_candidate(RuntimeOrigin::root(), ACCOUNT_1.id),
 			Error::<Test>::CandidateDoesNotExist
 		);
+		Dpos::do_try_state();
 	});
 }
 
@@ -48,6 +50,7 @@ fn should_ok_deregister_sucessfully() {
 
 		assert_eq!(Balances::free_balance(succes_acc), bond);
 		assert_eq!(Balances::total_balance_on_hold(&succes_acc), 0);
+		Dpos::do_try_state();
 	});
 }
 
@@ -92,6 +95,7 @@ fn should_ok_deregister_multiple_candidates_sucessfully() {
 		assert_eq!(CandidatePool::<Test>::get(candidate_2), None);
 		assert_eq!(CandidatePool::<Test>::get(candidate_3), None);
 		assert_eq!(CandidatePool::<Test>::count(), 0);
+		Dpos::do_try_state();
 	});
 }
 
@@ -172,6 +176,7 @@ fn should_ok_deregister_with_delegations_sucessfully() {
 				Balances::balance_on_hold(&HoldReason::CandidateBondReserved.into(), &candidate.id),
 				0
 			);
+			Dpos::do_try_state();
 		});
 }
 
@@ -236,5 +241,6 @@ fn should_ok_deregister_all_candidates_sucessfully() {
 				total_delegated_amount
 			);
 		}
+		Dpos::do_try_state();
 	});
 }

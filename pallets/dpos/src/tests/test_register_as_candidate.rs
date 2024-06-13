@@ -34,6 +34,8 @@ fn should_failed_too_many_candidates() {
 			Dpos::register_as_candidate(ros(CANDIDATE_5.id), 500),
 			Error::<Test>::TooManyValidators
 		);
+
+		Dpos::do_try_state()
 	});
 }
 

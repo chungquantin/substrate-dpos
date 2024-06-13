@@ -169,6 +169,8 @@ fn should_ok_undelegate_partial_amount() {
 					status: types::ValidatorStatus::Online
 				})
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -284,5 +286,6 @@ fn should_ok_multiple_undelegate_both_all_and_partial() {
 				amount: 101,
 				left_delegated_amount: 300 - 199 - 101,
 			}));
+			Dpos::do_try_state();
 		});
 }

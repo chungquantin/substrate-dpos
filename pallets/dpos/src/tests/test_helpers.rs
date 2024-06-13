@@ -41,6 +41,8 @@ pub fn register_new_candidate(
 		candidate_id: candidate,
 		initial_bond: hold_amount,
 	}));
+
+	Dpos::do_try_state();
 }
 
 pub fn delegate_candidate(delegator: AccountId, candidate: AccountId, amount: Balance) {
@@ -57,6 +59,8 @@ pub fn delegate_candidate(delegator: AccountId, candidate: AccountId, amount: Ba
 	}
 	assert_eq!(Balances::free_balance(delegator), before_balance - amount);
 	assert_eq!(Balances::total_balance_on_hold(&delegator), before_hold + amount);
+
+	Dpos::do_try_state();
 }
 
 pub fn get_delegator_commission() -> u32 {

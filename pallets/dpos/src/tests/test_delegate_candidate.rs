@@ -60,6 +60,8 @@ fn should_fail_delegate_too_many_candidates() {
 				Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_6.id, 100),
 				Error::<Test>::TooManyCandidateDelegations
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -100,6 +102,8 @@ fn should_ok_delegate_candidate_successfully() {
 					status: types::ValidatorStatus::Online
 				})
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -176,6 +180,8 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 					status: types::ValidatorStatus::Online
 				})
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -448,6 +454,8 @@ fn should_ok_multiple_delegators_one_candidate_successfully() {
 					status: types::ValidatorStatus::Online
 				})
 			);
+
+			Dpos::do_try_state();
 		});
 }
 
@@ -472,5 +480,7 @@ fn should_ok_direct_delegation() {
 				Dpos::delegate_candidate(ros(ACCOUNT_6.id), CANDIDATE_2.id, 100),
 				Error::<Test>::TooManyCandidateDelegations
 			);
+
+			Dpos::do_try_state();
 		});
 }

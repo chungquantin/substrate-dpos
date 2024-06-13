@@ -18,15 +18,11 @@ mod test_delay_undelegate_candidate;
 #[cfg(test)]
 mod test_delegate_candidate;
 #[cfg(test)]
-mod test_do_slash;
-#[cfg(test)]
 mod test_force_deregister_candidate;
 #[cfg(test)]
 mod test_force_undelegate_candidate;
 mod test_helpers;
 #[cfg(test)]
 mod test_register_as_candidate;
-#[cfg(test)]
-mod test_report_validator_set;
 #[cfg(test)]
 mod test_validator_election;

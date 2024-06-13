@@ -1,13 +1,7 @@
-use std::collections::BTreeMap;
-
 use crate::{mock::*, *};
-use constants::{
-	AccountId, ACCOUNT_6, CANDIDATE_1, CANDIDATE_2, CANDIDATE_3, CANDIDATE_4, CANDIDATE_5,
-	CANDIDATE_6, TEST_BLOCKS_PER_EPOCH,
-};
-use frame_support::{assert_ok, traits::FindAuthor};
+use constants::{CANDIDATE_1, CANDIDATE_2, CANDIDATE_3, CANDIDATE_4, CANDIDATE_5, CANDIDATE_6};
+use frame_support::assert_ok;
 use tests::{ros, test_helpers};
-use types::{CandidateDelegationSet, EpochSnapshot};
 
 #[test]
 fn should_ok_should_claim_rewards() {
@@ -252,5 +246,7 @@ fn should_ok_should_claim_rewards() {
 			assert_eq!(Dpos::reward_points(CANDIDATE_4.id), 0);
 			assert_eq!(Dpos::reward_points(CANDIDATE_5.id), 0);
 			assert_eq!(Dpos::reward_points(CANDIDATE_6.id), 0);
+
+			Dpos::do_try_state();
 		});
 }
