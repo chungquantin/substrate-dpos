@@ -45,6 +45,10 @@ provides the ability to switch between **Direct Delegation mode** and **Multi De
 - Think about and implement some kind of slashing for validators if they “misbehave”.
 - Integrate the Session pallet rather than using Aura directly.
 
+## Considerations
+
+At the outset of the project, a primary concern is designing a network architecture that effectively safeguards against malicious activities and mitigates centralization risks within the proof-of-stake model.
+
 ## Implementation Details
 
 To view the detailed documentation for the Pallet implementation. Please run the below command:
@@ -158,37 +162,65 @@ Candidate who misbehaves will be slashed from the network and the handler hook t
 #### Reward Distribution
 
 - Reward for every block produced won't be distributed automatically but requires the validators and delegators to claim it themself. There is no deadline for claiming the reward.
-- To distribute the reward, the network capture snapshot of the active validator set with its bond and the delegations of those elected validators at the beginning of an epoch in `LastEpochSnapshot`. 
+- To distribute the reward, the network capture snapshot of the active validator set with its bond and the delegations of those elected validators at the beginning of an epoch in `LastEpochSnapshot`.
 - The purpose of the `EpochSnapshot` is to avoid state of the validators and delegators change in the middle of the epoch. By that way, the reward is calculated using the amount caputred in the snapshot.
-- Some parameters are used in the **Reward calculation**:
-  - `BalanceFactor` is used for controlling the inflation rate via reward of the delegators and validators.
-  - `AuthorCommission` and `DelegatorCommission` are the two commission percentages configured by the `ConfigControllerOrigin` to use for reward calculation. 
+- The reward need to be claimed by the network stakeholders by calling the method `claim_reward(who)`. Reward is distributed to the candidate automatically when they leave pool.
+
+- **Reward calculation and its related parameters**:
+
+  - `AuthorCommission` and `DelegatorCommission` are the two commission percentages configured by the `ConfigControllerOrigin` to use for reward calculation.
+  - Likewise, `BalanceFactor` is also managed by `ConfigControllerOrigin` and is used for controlling the inflation rate via reward of the delegators and validators.
+
+  The `BalanceFactor` directly influences the rate at which new tokens are introduced into the system as rewards for validators and delegators. A higher BalanceFactor leads to higher inflation, as more tokens are distributed as rewards. Conversely, a lower BalanceFactor restricts inflation, resulting in fewer tokens being distributed.
+
+The formula this pallet use to calculate the reward is:
+$$P*S*B=R$$
+With:
+
+- $P$: Stands for the commission Percantage each actor is configured
+- $S$: Total staked of the validators or the total delegations of the delegator on the active validator.
+- $B$: Balance factor
+- $R$: Final calculated reward
 
 ### Further Improvements
 
-#### [Delay Action] Limited number of accepted offline epochs
+- #### [Delay Action] Limited number of accepted offline epochs
 
 The delay action feature can be enhanced by limiting the number of epochs a validator node can remain offline. Allowing a validator node to stay offline indefinitely without being removed can destabilize the network by allocating resources to an inactive node.
 
 - A new config type `MaxOfflineEpochs` and a new logic for removing the deprecated offline nodes can be added to implement this feature.
 
-#### [Slashing] Prevent candidate from joining the network without free participation after being slashed
+- #### [Slashing] Prevent candidate from joining the network without free participation after being slashed
 
-#### [Reward distribution]
+- #### Multi delegation instead of direct delegation
 
-#### Multi delegation instead of direct delegation
+Instead of limiting the delegation model to direct delegation, it can be expanded to foster greater network engagement among delegators through multi-delegation. This approach encourages delegators to participate in multiple network activities, thereby enhancing their involvement and contributions to the ecosystem.
 
-#### Reconfigurable network parameters
+Multi-delegation reduces the risk of centralization by spreading stake among several validators. This diversification enhances network resilience against potential attacks or failures from single validators, thereby improving overall security and reliability.
 
-#### Prevent cascading deletion when a Candidate is removed
+- #### Dynamic active validator set rotation
 
-## Game Theory & Economic Model
+The current selection algorithm only focuses on the top staked validators which can lead to the centralization in the network participation. To address this, implementing a dynamic active validator set rotation mechanism is crucial for fostering decentralization and ensuring a more inclusive participation across the network.
+
+A suggested design can be calculating and ordering the candidate pool based on its stake weight $W_i$ instead of its total staked $S$. Stake weight is calculated by
+
+$$W_i = \frac{\text{Tokens staked with validator } i}{\text{Total Staked Tokens}} \times 100$$
+
+with $T$ is the total delegations and $S$ is the total staked. By that way, we can choose the validator in a more balanced approach.
+
+- #### Prevent cascading deletion when a Candidate is removed
 
 How to distribute reward
 
-## Compromises
+- #### Mechanism to accept top delegations / bottom delegation
 
-### Reward Distribution
+Previously, we discussed the issue of "penny" delegation, which MinDelegateAmount helps manage but doesn't ensure the delegation pool consistently meets the required threshold.
+
+To address this, we propose implementing two lists of delegations: `CandidateTopDelegations` and `CandidateBottomDelegations`. Both are stored as maps where the key is CandidateId, and each contains a vector (Vec) of `DelegationInfo`.
+
+When `CandidateTopDelegations` reaches its capacity, the least contributing delegators are moved to `CandidateBottomDelegations`. This process frees up space in the top list for delegators with higher delegated amounts. If a delegator is moved from `CandidateTopDelegations` to `CandidateBottomDelegations`, they can move back to the top list if their delegated amount increases, allowing them to be eligible for rewards when the candidate is elected.
+
+This approach ensures that the delegation pool prioritizes delegators with substantial contributions while providing a mechanism for others to potentially move up based on their delegation amounts over time.
 
 ---
 
