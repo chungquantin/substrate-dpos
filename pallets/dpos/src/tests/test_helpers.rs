@@ -46,12 +46,13 @@ pub fn register_new_candidate(
 pub fn delegate_candidate(delegator: AccountId, candidate: AccountId, amount: Balance) {
 	let before_balance = Balances::free_balance(delegator);
 	let before_hold = Balances::total_balance_on_hold(&delegator);
+	let before_delegation_info = DelegationInfos::<Test>::get(delegator, candidate);
 	assert_ok!(Dpos::delegate_candidate(ros(delegator), candidate, amount));
 	assert_eq!(DelegateCountMap::<Test>::get(delegator), 1);
-	if let Some(before_delegation_info) = DelegationInfos::<Test>::get(delegator, candidate) {
+	if let Some(value) = before_delegation_info {
 		assert_eq!(
 			DelegationInfos::<Test>::get(delegator, candidate),
-			Some(DelegationInfo { amount: before_delegation_info.amount + amount })
+			Some(DelegationInfo { amount: value.amount + amount })
 		);
 	}
 	assert_eq!(Balances::free_balance(delegator), before_balance - amount);
