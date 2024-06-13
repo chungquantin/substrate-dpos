@@ -98,6 +98,9 @@ cargo doc
 - `execute_undelegate_candidate`: Executes the delayed undelegation of tokens from a candidate initiated by an authorized origin.
 - `cancel_undelegate_candidate_request`: Cancels the delayed undelegation request initiated by an authorized origin.
 - `claim_reward`: Allows an account to claim their accumulated reward points.
+
+#### Force Origin: Dispatchable Functions
+
 - `force_set_balance_rate`: Allows an authorized origin to set the balance rate for inflation rebalancing of the DPoS network.
 - `force_report_new_validators`: Forces a report of new validators to update the network state.
 

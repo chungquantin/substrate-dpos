@@ -1,4 +1,4 @@
-use frame_support::assert_ok;
+use frame::deps::frame_support::assert_ok;
 
 use crate::{
 	constants::{AccountId, Balance},
@@ -11,7 +11,7 @@ use crate::{
 	BalanceOf, CandidateDelegators, CandidatePool, DelegateCountMap, DelegationInfos, Event,
 	HoldReason,
 };
-use frame_support::traits::fungible::InspectHold;
+use frame::deps::frame_support::traits::fungible::InspectHold;
 
 pub fn register_new_candidate(
 	candidate: AccountId,

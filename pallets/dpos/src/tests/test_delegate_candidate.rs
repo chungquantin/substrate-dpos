@@ -1,6 +1,6 @@
 use crate::{mock::*, *};
 use constants::*;
-use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
+use frame::deps::frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 use tests::{ros, test_helpers};
 use types::{CandidateDetail, DelegationInfo};
 
@@ -187,7 +187,7 @@ fn should_ok_one_delegator_one_candidate_successfully() {
 
 #[test]
 fn should_ok_one_delegator_multiple_candidates_successfully() {
-	use frame_support::traits::fungible::InspectHold;
+	use frame::deps::frame_support::traits::fungible::InspectHold;
 	let mut ext = TestExtBuilder::default();
 	ext.reward_distribution_disabled()
 		.genesis_candidates(vec![])

@@ -4,7 +4,7 @@ use crate::{
 	tests::{ros, test_helpers},
 	CandidatePool, Error, Event,
 };
-use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
+use frame::deps::frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 
 #[test]
 fn should_failed_bond_less_zero_value() {

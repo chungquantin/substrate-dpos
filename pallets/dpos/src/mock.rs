@@ -4,11 +4,16 @@ use crate::{
 	types::CandidateSet,
 	BalanceOf, OnSlashHandler, ReportNewValidatorSet,
 };
-use frame_support::{
-	derive_impl, parameter_types,
-	traits::{ConstU16, ConstU32, ConstU64, FindAuthor, Hooks},
+use frame::{
+	deps::{
+		frame_support::{
+			derive_impl, parameter_types,
+			traits::{ConstU16, ConstU32, ConstU64, FindAuthor, Hooks},
+		},
+		frame_system::{pallet_prelude::BlockNumberFor, EnsureRoot},
+	},
+	prelude::*,
 };
-use frame_system::{pallet_prelude::BlockNumberFor, EnsureRoot};
 use lazy_static::lazy_static;
 use sp_core::H256;
 use sp_runtime::{
@@ -16,12 +21,12 @@ use sp_runtime::{
 	BuildStorage,
 };
 
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame::deps::frame_system::mocking::MockBlock<Test>;
 
 // Configure a mock runtime to test the pallet. We use the simpler syntax here.
-frame_support::construct_runtime! {
+frame::deps::frame_support::construct_runtime! {
 	pub struct Test {
-		System: frame_system,
+		System: frame::deps::frame_system,
 		Balances: pallet_balances,
 		Dpos: pallet_dpos,
 	}
@@ -69,8 +74,8 @@ lazy_static! {
 // for verbosity. Same for `pallet_balances::Config`.
 // https://paritytech.github.io/polkadot-sdk/master/frame_support/attr.derive_impl.html
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
-impl frame_system::Config for Test {
-	type BaseCallFilter = frame_support::traits::Everything;
+impl frame::deps::frame_system::Config for Test {
+	type BaseCallFilter = frame::deps::frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
@@ -92,7 +97,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ConstU16<42>;
 	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = frame::deps::frame_support::traits::ConstU32<16>;
 }
 
 #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]

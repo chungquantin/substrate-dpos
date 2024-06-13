@@ -1,6 +1,6 @@
 use crate::{mock::*, *};
 use constants::*;
-use frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
+use frame::deps::frame_support::{assert_noop, assert_ok, traits::fungible::InspectHold};
 
 use tests::ros;
 use types::{CandidateDetail, DelegationInfo};

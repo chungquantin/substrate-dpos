@@ -5,7 +5,7 @@ use constants::{
 	AccountId, ACCOUNT_6, CANDIDATE_1, CANDIDATE_2, CANDIDATE_3, CANDIDATE_4, CANDIDATE_5,
 	CANDIDATE_6, TEST_BLOCKS_PER_EPOCH,
 };
-use frame_support::{assert_ok, traits::FindAuthor};
+use frame::deps::frame_support::{assert_ok, traits::FindAuthor};
 use tests::{ros, test_helpers};
 use types::{CandidateDelegationSet, EpochSnapshot};
 

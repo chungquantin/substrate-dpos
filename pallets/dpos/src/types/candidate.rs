@@ -1,7 +1,7 @@
 use sp_std::collections::btree_map::BTreeMap;
 
 use codec::{Decode, Encode, MaxEncodedLen};
-use frame_support::{
+use frame::deps::frame_support::{
 	sp_runtime::traits::{CheckedAdd, CheckedSub},
 	traits::DefensiveSaturating,
 };

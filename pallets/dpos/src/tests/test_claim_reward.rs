@@ -1,6 +1,6 @@
 use crate::{mock::*, *};
 use constants::{CANDIDATE_1, CANDIDATE_2, CANDIDATE_3, CANDIDATE_4, CANDIDATE_5, CANDIDATE_6};
-use frame_support::assert_ok;
+use frame::deps::frame_support::assert_ok;
 use tests::{ros, test_helpers};
 
 #[test]

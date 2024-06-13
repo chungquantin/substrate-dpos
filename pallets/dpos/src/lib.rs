@@ -50,26 +50,23 @@ mod constants;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-// TODO OnSlashHandler test
-// TODO polkadot_sdk_frame
-// TODO DefaultTestConfig
-// TODO video & diagrams
-// TODO integrate with pallet_session
-#[frame_support::pallet]
+#[frame::deps::frame_support::pallet]
 pub mod pallet {
 	use crate::{types::*, weights::WeightInfo};
-	use frame_support::{
-		dispatch::DispatchResult,
-		pallet_prelude::{ValueQuery, *},
-		sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
-		traits::{
-			fungible::{self, Mutate, MutateHold},
-			tokens::{Fortitude, Precision},
-			FindAuthor,
+	use frame::deps::{
+		frame_support::{
+			dispatch::DispatchResult,
+			pallet_prelude::{ValueQuery, *},
+			sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
+			traits::{
+				fungible::{self, Mutate, MutateHold},
+				tokens::{Fortitude, Precision},
+				FindAuthor,
+			},
+			Twox64Concat,
 		},
-		Twox64Concat,
+		frame_system::pallet_prelude::{OriginFor, *},
 	};
-	use frame_system::pallet_prelude::{OriginFor, *};
 	use sp_runtime::{traits::One, BoundedVec, Percent, Saturating};
 	use sp_std::{
 		cmp::Reverse,
@@ -89,7 +86,7 @@ pub mod pallet {
 	}
 
 	pub type BalanceOf<T> = <<T as Config>::NativeBalance as fungible::Inspect<
-		<T as frame_system::Config>::AccountId,
+		<T as frame::deps::frame_system::Config>::AccountId,
 	>>::Balance;
 
 	#[pallet::pallet]
@@ -97,8 +94,9 @@ pub mod pallet {
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+	pub trait Config: frame::deps::frame_system::Config {
+		type RuntimeEvent: From<Event<Self>>
+			+ IsType<<Self as frame::deps::frame_system::Config>::RuntimeEvent>;
 
 		/// Type to access the Balances Pallet.
 		type NativeBalance: fungible::Inspect<Self::AccountId>
@@ -1168,7 +1166,7 @@ pub mod pallet {
 			Self::deposit_event(Event::NextEpochMoved {
 				last_epoch: epoch_index,
 				next_epoch: next_epoch_index,
-				at_block: frame_system::Pallet::<T>::block_number(),
+				at_block: frame::deps::frame_system::Pallet::<T>::block_number(),
 				total_candidates: CandidatePool::<T>::count() as u64,
 				total_validators: active_valivdator_set.len() as u64,
 			});
@@ -1288,7 +1286,7 @@ pub mod pallet {
 			request_by: T::AccountId,
 			action_type: DelayActionType,
 		) -> DispatchResult {
-			let now = frame_system::Pallet::<T>::block_number();
+			let now = frame::deps::frame_system::Pallet::<T>::block_number();
 			let request = DelayActionRequests::<T>::get(&request_by, &action_type)
 				.ok_or(Error::<T>::NoDelayActionRequestFound)?;
 			// Delay action is due, start executing the action
@@ -1327,7 +1325,7 @@ pub mod pallet {
 				&action_type,
 				Some(DelayActionRequest {
 					target,
-					created_at: frame_system::Pallet::<T>::block_number(),
+					created_at: frame::deps::frame_system::Pallet::<T>::block_number(),
 					delay_for: Self::get_delay_action_duration(&action_type),
 					amount: consumed_amount,
 				}),

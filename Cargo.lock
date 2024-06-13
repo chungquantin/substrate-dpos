@@ -2008,15 +2008,13 @@ dependencies = [
 name = "pallet-dpos"
 version = "4.0.0-dev"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
  "lazy_static",
  "log",
  "pallet-balances",
  "pallet-session",
  "pallet-timestamp",
  "parity-scale-codec",
+ "polkadot-sdk-frame",
  "scale-info",
  "sp-core",
  "sp-io",

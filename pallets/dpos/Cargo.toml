@@ -19,9 +19,10 @@ scale-info = { version = "2.11.1", default-features = false, features = [
 	"derive",
 ] }
 
-frame-benchmarking = { version = "34.0.0", default-features = false, optional = true }
-frame-support = { version = "34.0.0", default-features = false }
-frame-system = { version = "34.0.0", default-features = false }
+frame = { version = "0.3.0", package = "polkadot-sdk-frame", default-features = false, features = [
+	"experimental",
+	"runtime",
+] }
 
 pallet-session = { workspace = true }
 pallet-timestamp = { workspace = true }
@@ -39,9 +40,7 @@ pallet-balances = { version = "35.0.0" }
 default = ["std"]
 std = [
 	"codec/std",
-	"frame-benchmarking?/std",
-	"frame-support/std",
-	"frame-system/std",
+	"frame/std",
 	"scale-info/std",
 	"sp-runtime/std",
 	"sp-io/std",
@@ -50,5 +49,5 @@ std = [
 	"pallet-session/std",
 	"pallet-timestamp/std",
 ]
-runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]
-try-runtime = ["frame-support/try-runtime"]
+runtime-benchmarks = ["frame/runtime-benchmarks"]
+try-runtime = ["frame/try-runtime"]
