@@ -29,13 +29,12 @@ mod benchmarking;
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::{types::*, weights::WeightInfo};
-	use frame_support::traits::fungible::Mutate;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::{ValueQuery, *},
 		sp_runtime::traits::{CheckedAdd, CheckedSub, Zero},
 		traits::{
-			fungible::{self, MutateHold},
+			fungible::{self, Mutate, MutateHold},
 			tokens::{Fortitude, Precision},
 			FindAuthor,
 		},
@@ -43,8 +42,12 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::{OriginFor, *};
 	use sp_runtime::{traits::One, BoundedVec, Percent, Saturating};
-	use sp_std::collections::btree_map::BTreeMap;
-	use sp_std::{cmp::Reverse, collections::btree_set::BTreeSet, prelude::*, vec::Vec};
+	use sp_std::{
+		cmp::Reverse,
+		collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+		prelude::*,
+		vec::Vec,
+	};
 
 	pub trait ReportNewValidatorSet<AccountId> {
 		fn report_new_validator_set(_new_set: Vec<AccountId>) {}
@@ -1025,9 +1028,9 @@ pub mod pallet {
 		}
 
 		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u32) -> BalanceOf<T> {
-			Percent::from_rational(percent, 100)
-				* Percent::from_rational(BalanceRate::<T>::get(), 100)
-				* total
+			Percent::from_rational(percent, 100) *
+				Percent::from_rational(BalanceRate::<T>::get(), 100) *
+				total
 		}
 
 		pub fn get_epoch_snapshot(

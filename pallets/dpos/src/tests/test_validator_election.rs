@@ -298,8 +298,8 @@ fn should_ok_reward_distributed_for_validators_and_delegators() {
 			assert_ok!(Dpos::claim_reward(ros(ACCOUNT_6.id)));
 			assert_eq!(
 				Balances::free_balance(ACCOUNT_6.id),
-				ACCOUNT_6.balance - 300
-					+ Dpos::calculate_reward(300, test_helpers::get_delegator_commission()) * 2
+				ACCOUNT_6.balance - 300 +
+					Dpos::calculate_reward(300, test_helpers::get_delegator_commission()) * 2
 			);
 			assert_eq!(Dpos::reward_points(ACCOUNT_6.id), 0);
 
