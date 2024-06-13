@@ -1202,8 +1202,9 @@ pub mod pallet {
 		pub fn get_online_candidate_set() -> CandidateDelegationSet<T> {
 			CandidatePool::<T>::iter()
 				.filter_map(|(candidate, candidate_detail)| match candidate_detail.status {
-					ValidatorStatus::Online =>
-						Some((candidate, candidate_detail.bond, candidate_detail.total())),
+					ValidatorStatus::Online => {
+						Some((candidate, candidate_detail.bond, candidate_detail.total()))
+					},
 					ValidatorStatus::Offline => None,
 				})
 				.collect()
@@ -1499,9 +1500,9 @@ pub mod pallet {
 		}
 
 		pub(crate) fn calculate_reward(total: BalanceOf<T>, percent: u32) -> BalanceOf<T> {
-			Percent::from_rational(percent, 100) *
-				Percent::from_rational(BalanceRate::<T>::get(), 1000) *
-				total
+			Percent::from_rational(percent, 100)
+				* Percent::from_rational(BalanceRate::<T>::get(), 1000)
+				* total
 		}
 
 		/// Captures an epoch snapshot containing information about the active validators and their

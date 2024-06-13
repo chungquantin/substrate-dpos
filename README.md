@@ -11,8 +11,36 @@ for producing blocks and securing the network.
 The DPoS pallet implements a governance mechanism where stakeholders can elect a set of
 validators to secure the network. Token holders delegate their stake to validators, who then
 participate in the block production process. This pallet includes functionality for delegating
-stake, selecting validators, and handling rewards and penalties. Moreover, this pallet also
-provides the ability to switch between **Direct Delegation mode** and **Multi Delegation mode**
+stake, selecting validators, and handling rewards and penalties.
+
+## Table of Contents
+
+- [Direct Delegated Proof of Stake Pallet](#direct-delegated-proof-of-stake-pallet)
+  - [Overview](#overview)
+  - [Table of Contents](#table-of-contents)
+  - [Terminology](#terminology)
+  - [Goals](#goals)
+    - [_Optional_](#optional)
+  - [Considerations](#considerations)
+  - [Implementation Details](#implementation-details)
+    - [Storage Types](#storage-types)
+      - [Genesis \& Runtime Configuration](#genesis--runtime-configuration)
+      - [Dispatchable Functions](#dispatchable-functions)
+      - [Force Origin: Dispatchable Functions](#force-origin-dispatchable-functions)
+    - [Scenarios](#scenarios)
+      - [Candidate Regristration](#candidate-regristration)
+      - [Candidate Request to Leave Pool](#candidate-request-to-leave-pool)
+      - [Delegation \& Undelegation](#delegation--undelegation)
+      - [Slashing candidate](#slashing-candidate)
+      - [Validator Election](#validator-election)
+      - [Reward Distribution](#reward-distribution)
+    - [Further Improvements](#further-improvements)
+  - [How to run the test?](#how-to-run-the-test)
+  - [How to add the pallet to your runtime?](#how-to-add-the-pallet-to-your-runtime)
+    - [Adding a pallet to your dependency TOML file](#adding-a-pallet-to-your-dependency-toml-file)
+    - [Configuring the Runtime to use the pallet](#configuring-the-runtime-to-use-the-pallet)
+  - [How to build your runtime \& chainspec?](#how-to-build-your-runtime--chainspec)
+  - [How to run `omni-node`?](#how-to-run-omni-node)
 
 ## Terminology
 
