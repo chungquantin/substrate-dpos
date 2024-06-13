@@ -8,7 +8,7 @@ fn should_ok_should_claim_rewards() {
 	let mut ext = TestExtBuilder::default();
 
 	ext.genesis_candidates(vec![])
-		.balance_rate(100)
+		.balance_rate(1000)
 		.min_candidate_bond(100)
 		.max_active_validators(3)
 		.epoch_duration(3)

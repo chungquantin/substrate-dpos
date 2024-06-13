@@ -39,7 +39,7 @@ fn should_ok_epoch_snapshot_is_correct() {
 	ext.epoch_duration(TEST_BLOCKS_PER_EPOCH).build().execute_with(|| {
 		let active_validator_set = Dpos::select_active_validator_set();
 		assert_eq!(
-			Some(Dpos::get_epoch_snapshot(&active_validator_set)),
+			Some(Dpos::capture_epoch_snapshot(&active_validator_set)),
 			Dpos::last_epoch_snapshot()
 		);
 	});
@@ -61,7 +61,7 @@ fn should_ok_epoch_snapshot_update_with_new_candidates() {
 			ext.run_to_block(2);
 			// Attemp to register as candidate without enough fund in the account
 			assert_eq!(
-				Dpos::get_epoch_snapshot(&Dpos::active_validators()),
+				Dpos::capture_epoch_snapshot(&Dpos::active_validators()),
 				EpochSnapshot {
 					validators: BTreeMap::from_iter(vec![
 						(CANDIDATE_1.id, 300),
@@ -72,7 +72,7 @@ fn should_ok_epoch_snapshot_update_with_new_candidates() {
 				}
 			);
 			assert_eq!(
-				Dpos::get_epoch_snapshot(&Dpos::active_validators())
+				Dpos::capture_epoch_snapshot(&Dpos::active_validators())
 					.validators
 					.get(&CANDIDATE_4.id),
 				None
@@ -82,7 +82,7 @@ fn should_ok_epoch_snapshot_update_with_new_candidates() {
 			ext.run_to_block(TEST_BLOCKS_PER_EPOCH);
 
 			assert_eq!(
-				Dpos::get_epoch_snapshot(&Dpos::active_validators())
+				Dpos::capture_epoch_snapshot(&Dpos::active_validators())
 					.validators
 					.get(&CANDIDATE_4.id),
 				Some(&500)
@@ -91,7 +91,7 @@ fn should_ok_epoch_snapshot_update_with_new_candidates() {
 			test_helpers::register_new_candidate(CANDIDATE_5.id, CANDIDATE_5.balance, 600);
 
 			assert_eq!(
-				Dpos::get_epoch_snapshot(&Dpos::active_validators())
+				Dpos::capture_epoch_snapshot(&Dpos::active_validators())
 					.validators
 					.get(&CANDIDATE_5.id),
 				None
@@ -100,7 +100,7 @@ fn should_ok_epoch_snapshot_update_with_new_candidates() {
 			ext.run_to_block_from(TEST_BLOCKS_PER_EPOCH, TEST_BLOCKS_PER_EPOCH);
 
 			assert_eq!(
-				Dpos::get_epoch_snapshot(&Dpos::active_validators())
+				Dpos::capture_epoch_snapshot(&Dpos::active_validators())
 					.validators
 					.get(&CANDIDATE_5.id),
 				Some(&600)
@@ -139,7 +139,7 @@ fn should_ok_reward_distributed_for_validators() {
 				{
 					if Some(*active_validator) == maybe_author {
 						assert_eq!(
-							Dpos::get_epoch_snapshot(&Dpos::active_validators())
+							Dpos::capture_epoch_snapshot(&Dpos::active_validators())
 								.validators
 								.get(&active_validator),
 							Some(bond)
@@ -369,7 +369,7 @@ fn should_ok_reward_distributed_for_validators_and_delegators() {
 
 	// Ensure that the candiddate is registered with valid bond
 	ext.genesis_candidates(vec![])
-		.balance_rate(100)
+		.balance_rate(1000)
 		.min_candidate_bond(100)
 		.epoch_duration(3)
 		.build()

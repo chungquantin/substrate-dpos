@@ -164,19 +164,22 @@ impl pallet_assets::Config for Runtime {
 	type BenchmarkHelper = ();
 }
 
+// Number of blocks per epoch is 20
+const EPOCH_DURATION: u32 = 20;
+
 parameter_types! {
 	pub const MaxCandidates : u32 = 200;
-	pub const MaxCandidateDelegators : u32 = 500;
-	pub const MinCandidateBond: u32 = 10;
+	pub const MaxCandidateDelegators : u32 = 300;
+	pub const MinCandidateBond: u32 = 1_000;
 	pub const MaxActivevalidators: u32 = 100;
 	pub const MinActiveValidators: u32 = 3;
-	pub const MaxDelegateCount : u32 = 20;
-	pub const DelayDeregisterCandidateDuration : u32 = 20;
-	pub const DelayUndelegateCandidate : u32 = 20;
-	pub const EpochDuration : u32 = 20;
-	pub const MinDelegateAmount : u128 = 10;
-	pub const ValidatorCommission : u8 = 3;
-	pub const DelegatorCommission : u8 = 1;
+	pub const MaxDelegateCount : u32 = 30;
+	pub const EpochDuration : u32 = EPOCH_DURATION;
+	pub const DelayDeregisterCandidateDuration : u32 = EPOCH_DURATION * 2;
+	pub const DelayUndelegateCandidate : u32 = EPOCH_DURATION;
+	pub const MinDelegateAmount : u128 = 150;
+	pub const ValidatorCommission : u8 = 5;
+	pub const DelegatorCommission : u8 = 3;
 }
 
 pub struct BlockAuthor;
