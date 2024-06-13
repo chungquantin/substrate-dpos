@@ -220,7 +220,6 @@ impl pallet_dpos::Config for Runtime {
 	type NativeBalance = Balances;
 	type MaxCandidates = MaxCandidates;
 	type MaxCandidateDelegators = MaxCandidateDelegators;
-	type ForceOrigin = EnsureRoot<AccountId>;
 	type MaxActiveValidators = MaxActivevalidators;
 	type MinActiveValidators = MinActiveValidators;
 	type ReportNewValidatorSet = StoreNewValidatorSet;
@@ -236,6 +235,8 @@ impl pallet_dpos::Config for Runtime {
 	type AuthorCommission = ValidatorCommission;
 	type DelegatorCommission = DelegatorCommission;
 	type FindAuthor = BlockAuthor;
+	type ForceOrigin = EnsureRoot<AccountId>;
+	type ConfigControllerOrigin = EnsureRoot<AccountId>;
 }
 
 /// The signed extensions that are added to the runtime.

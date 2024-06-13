@@ -146,7 +146,6 @@ impl pallet_dpos::Config for Test {
 	type MaxCandidates = MaxCandidates;
 	type MaxCandidateDelegators = MaxCandidateDelegators;
 	type ReportNewValidatorSet = DoNothing;
-	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = ();
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type MaxActiveValidators = MaxActiveValidators;
@@ -160,6 +159,8 @@ impl pallet_dpos::Config for Test {
 	type AuthorCommission = ValidatorCommission;
 	type DelegatorCommission = DelegatorCommission;
 	type FindAuthor = RoundRobinAuthor;
+	type ForceOrigin = EnsureRoot<AccountId>;
+	type ConfigControllerOrigin = EnsureRoot<AccountId>;
 	type OnSlashHandler = DoNothing;
 }
 
@@ -189,6 +190,11 @@ impl TestExtBuilder {
 
 	pub fn min_candidate_bond(&mut self, min_candidate_bond: BalanceOf<Test>) -> &mut Self {
 		MinCandidateBond::set(min_candidate_bond);
+		self
+	}
+
+	pub fn max_active_validators(&mut self, max_active_validators: u32) -> &mut Self {
+		MaxActiveValidators::set(max_active_validators);
 		self
 	}
 

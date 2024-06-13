@@ -19,13 +19,11 @@ mod benchmarking;
 
 // TODO add weight & return weight with DispatchResultWithPostInfo
 // TODO Writing benchmark code
-// TODO test the delegator reward
 // TODO add force_set_balance_rate(root_origin, new_balance_rate)
 // TODO consider improving the sorting algorithm
 // TODO add integrity testing
 // TODO add documentation
 // TODO integrate with pallet_session
-// TODO optional: consider adding bags list
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::{types::*, weights::WeightInfo};
@@ -104,36 +102,32 @@ pub mod pallet {
 		type MaxDelegateCount: Get<u32>;
 
 		/// The minimum number of stake that the candidate need to provide to secure slot
-		#[pallet::constant]
 		type MinCandidateBond: Get<BalanceOf<Self>>;
 
 		/// The minimum number of delegate amount that the delegator need to provide for one
 		/// candidate
-		#[pallet::constant]
 		type MinDelegateAmount: Get<BalanceOf<Self>>;
 
 		/// We use a configurable constant `BlockNumber` to tell us when we should trigger the
 		/// validator set change. The runtime developer should implement this to represent the time
 		/// they want validators to change, but for your pallet, you just care about the block
 		/// number.
-		#[pallet::constant]
 		type EpochDuration: Get<BlockNumberFor<Self>>;
 
 		/// Number of blocks required for the deregister_candidate_method to work
-		#[pallet::constant]
 		type DelayDeregisterCandidateDuration: Get<BlockNumberFor<Self>>;
 
 		/// Number of blocks required for the undelegate_candidate to work
-		#[pallet::constant]
 		type DelayUndelegateCandidate: Get<BlockNumberFor<Self>>;
 
 		/// Percentage of commission that the delegator receives for their delegations
-		#[pallet::constant]
 		type DelegatorCommission: Get<u32>;
 
 		/// Percentage of commission that the active validator receives for their delegations
 		#[pallet::constant]
 		type AuthorCommission: Get<u32>;
+
+		type ConfigControllerOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		type ForceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		/// Report the new validators to the runtime. This is done through a custom trait defined in
